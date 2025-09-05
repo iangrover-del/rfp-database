@@ -268,6 +268,28 @@ def delete_rfp_submission(rfp_id: int):
     finally:
         conn.close()
 
+def rename_rfp_submission(rfp_id: int, new_filename: str):
+    """Rename an RFP submission filename"""
+    conn = init_database()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if the new filename already exists
+        cursor.execute('SELECT id FROM rfp_submissions WHERE filename = ? AND id != ?', (new_filename, rfp_id))
+        if cursor.fetchone():
+            return False, "A file with this name already exists"
+        
+        # Update the filename
+        cursor.execute('UPDATE rfp_submissions SET filename = ? WHERE id = ?', (new_filename, rfp_id))
+        
+        conn.commit()
+        return True, "Filename updated successfully"
+    except Exception as e:
+        conn.rollback()
+        return False, f"Error updating filename: {str(e)}"
+    finally:
+        conn.close()
+
 def get_all_submissions():
     """Get all RFP submissions"""
     conn = init_database()
@@ -1106,6 +1128,60 @@ def show_browse_page():
             st.success("✅ Status updated successfully!")
             st.rerun()
     
+    # Rename RFP section
+    st.subheader("📝 Rename RFP")
+    st.markdown("**Change the filename to something more descriptive**")
+    
+    # Select RFP to rename
+    rename_rfp_options = {f"{sub[1]} - {sub[2] or 'Unknown'}": sub[0] for sub in submissions}
+    selected_rename_rfp = st.selectbox("Select RFP to rename:", list(rename_rfp_options.keys()), key="rename_select")
+    rename_rfp_id = rename_rfp_options[selected_rename_rfp]
+    
+    # Get current filename
+    rename_submission = next(s for s in submissions if s[0] == rename_rfp_id)
+    current_filename = rename_submission[1]
+    
+    # Show current filename and input for new name
+    st.write(f"**Current filename:** `{current_filename}`")
+    
+    # Extract file extension
+    file_extension = ""
+    if '.' in current_filename:
+        file_extension = '.' + current_filename.split('.')[-1]
+    
+    # Input for new filename
+    new_filename = st.text_input(
+        "New filename:",
+        value=current_filename,
+        placeholder="Enter new filename",
+        help=f"File extension {file_extension} will be preserved if you don't include it"
+    )
+    
+    # Auto-add extension if not provided
+    if new_filename and not new_filename.endswith(file_extension) and file_extension:
+        new_filename = new_filename + file_extension
+    
+    # Validation
+    if new_filename and new_filename != current_filename:
+        if len(new_filename) > 255:
+            st.error("❌ Filename is too long (max 255 characters)")
+        elif not new_filename.strip():
+            st.error("❌ Filename cannot be empty")
+        else:
+            st.info(f"📝 Will rename to: `{new_filename}`")
+            
+            if st.button("📝 Rename File", type="primary"):
+                with st.spinner("Renaming file..."):
+                    success, message = rename_rfp_submission(rename_rfp_id, new_filename)
+                    if success:
+                        st.success(f"✅ {message}")
+                        st.info("🔄 The page will refresh to show the updated filename.")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {message}")
+    elif new_filename == current_filename:
+        st.info("💡 Enter a different name to rename the file")
+    
     # Delete RFP section
     st.subheader("🗑️ Delete RFP")
     st.markdown("**⚠️ Warning: This action cannot be undone!**")
@@ -1182,11 +1258,77 @@ def show_browse_page():
             
             with col2:
                 st.markdown("**Quick Actions**")
+                
+                # Quick rename button
+                if st.button(f"📝 Rename", key=f"rename_quick_{submission[0]}", type="secondary"):
+                    # Use session state to store the RFP to rename
+                    st.session_state.rename_rfp_id = submission[0]
+                    st.session_state.rename_rfp_name = submission[1]
+                    st.rerun()
+                
+                # Quick delete button
                 if st.button(f"🗑️ Delete", key=f"delete_quick_{submission[0]}", type="secondary"):
                     # Use session state to store the RFP to delete
                     st.session_state.delete_rfp_id = submission[0]
                     st.session_state.delete_rfp_name = submission[1]
                     st.rerun()
+    
+    # Handle quick rename
+    if 'rename_rfp_id' in st.session_state:
+        st.info(f"""
+        **📝 Quick Rename**
+        
+        Renaming: **{st.session_state.rename_rfp_name}**
+        """)
+        
+        # Get current filename and extension
+        current_filename = st.session_state.rename_rfp_name
+        file_extension = ""
+        if '.' in current_filename:
+            file_extension = '.' + current_filename.split('.')[-1]
+        
+        # Input for new filename
+        new_filename = st.text_input(
+            "New filename:",
+            value=current_filename,
+            placeholder="Enter new filename",
+            key="quick_rename_input",
+            help=f"File extension {file_extension} will be preserved if you don't include it"
+        )
+        
+        # Auto-add extension if not provided
+        if new_filename and not new_filename.endswith(file_extension) and file_extension:
+            new_filename = new_filename + file_extension
+        
+        col1, col2, col3 = st.columns([1, 1, 1])
+        
+        with col1:
+            if st.button("✅ Rename", type="primary"):
+                if new_filename and new_filename != current_filename:
+                    if len(new_filename) > 255:
+                        st.error("❌ Filename is too long (max 255 characters)")
+                    elif not new_filename.strip():
+                        st.error("❌ Filename cannot be empty")
+                    else:
+                        with st.spinner("Renaming file..."):
+                            success, message = rename_rfp_submission(st.session_state.rename_rfp_id, new_filename)
+                            if success:
+                                st.success(f"✅ {message}")
+                                # Clear session state
+                                del st.session_state.rename_rfp_id
+                                del st.session_state.rename_rfp_name
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {message}")
+                else:
+                    st.error("❌ Please enter a different filename")
+        
+        with col3:
+            if st.button("❌ Cancel", type="secondary"):
+                # Clear session state
+                del st.session_state.rename_rfp_id
+                del st.session_state.rename_rfp_name
+                st.rerun()
     
     # Handle quick delete confirmation
     if 'delete_rfp_id' in st.session_state:
