@@ -3,7 +3,7 @@ import os
 import tempfile
 import json
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Any
 import sqlite3
 from pathlib import Path
@@ -13,6 +13,7 @@ import PyPDF2
 import io
 import hashlib
 import secrets
+import time
 
 # Authentication functions
 def hash_password(password: str) -> str:
@@ -24,9 +25,36 @@ def verify_password(password: str, hashed: str) -> bool:
     return hash_password(password) == hashed
 
 def check_authentication():
-    """Check if user is authenticated"""
+    """Check if user is authenticated with session timeout"""
+    # Initialize session state if not exists
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
+    if 'login_time' not in st.session_state:
+        st.session_state.login_time = None
+    
+    # Check if user is authenticated
+    if st.session_state.authenticated and st.session_state.login_time:
+        # Check if session has expired (2 hours = 7200 seconds)
+        current_time = time.time()
+        session_duration = 2 * 60 * 60  # 2 hours in seconds
+        
+        if current_time - st.session_state.login_time > session_duration:
+            # Session expired
+            st.session_state.authenticated = False
+            st.session_state.login_time = None
+            st.warning("⏰ Your session has expired. Please log in again.")
+            return False
+        else:
+            # Session is still valid
+            remaining_time = session_duration - (current_time - st.session_state.login_time)
+            remaining_minutes = int(remaining_time / 60)
+            
+            # Show session info in sidebar (only if less than 30 minutes remaining)
+            if remaining_minutes < 30:
+                st.sidebar.info(f"⏰ Session expires in {remaining_minutes} minutes")
+            
+            return True
+    
     return st.session_state.authenticated
 
 def login_page():
@@ -49,6 +77,8 @@ def login_page():
         if st.button("Login", type="primary", use_container_width=True):
             if password == correct_password:
                 st.session_state.authenticated = True
+                st.session_state.login_time = time.time()  # Record login time
+                st.success("✅ Login successful! Your session will last 2 hours.")
                 st.rerun()
             else:
                 st.error("❌ Incorrect password. Please try again.")
@@ -85,6 +115,32 @@ def init_openai():
         st.error("⚠️ OpenAI API key not found. Please set OPENAI_API_KEY in secrets or environment variables.")
         st.stop()
     return openai.OpenAI(api_key=api_key)
+
+def test_openai_connection(client):
+    """Test OpenAI API connection with a simple request"""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant. Respond with a simple JSON object containing a 'status' field set to 'ok'."},
+                {"role": "user", "content": "Test connection"}
+            ],
+            temperature=0.1,
+            max_tokens=50
+        )
+        
+        content = response.choices[0].message.content
+        if content and content.strip():
+            try:
+                result = json.loads(content)
+                return True, "API connection successful"
+            except:
+                return True, f"API responded but with invalid JSON: {content[:100]}"
+        else:
+            return False, "API returned empty response"
+            
+    except Exception as e:
+        return False, f"API connection failed: {str(e)}"
 
 # Database functions
 def init_database():
@@ -325,7 +381,23 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
             max_tokens=2000
         )
         
-        return json.loads(response.choices[0].message.content)
+        # Get the response content
+        response_content = response.choices[0].message.content
+        
+        # Check if response is empty
+        if not response_content or response_content.strip() == "":
+            return {"error": "AI returned empty response. This might be due to API quota limits or content filtering."}
+        
+        # Try to parse JSON
+        try:
+            return json.loads(response_content)
+        except json.JSONDecodeError as json_error:
+            # If JSON parsing fails, return the raw response for debugging
+            return {
+                "error": f"AI returned invalid JSON. Raw response: {response_content[:500]}...",
+                "json_error": str(json_error),
+                "raw_response": response_content
+            }
         
     except Exception as e:
         return {"error": f"Failed to extract data: {str(e)}"}
@@ -476,7 +548,25 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
             max_tokens=3000
         )
         
-        return json.loads(response.choices[0].message.content)
+        # Get the response content
+        response_content = response.choices[0].message.content
+        
+        # Check if response is empty
+        if not response_content or response_content.strip() == "":
+            return {"matches": [], "confidence": 0, "error": "AI returned empty response. This might be due to API quota limits or content filtering."}
+        
+        # Try to parse JSON
+        try:
+            return json.loads(response_content)
+        except json.JSONDecodeError as json_error:
+            # If JSON parsing fails, return the raw response for debugging
+            return {
+                "matches": [],
+                "confidence": 0,
+                "error": f"AI returned invalid JSON. Raw response: {response_content[:500]}...",
+                "json_error": str(json_error),
+                "raw_response": response_content
+            }
         
     except Exception as e:
         return {"matches": [], "confidence": 0, "error": str(e)}
@@ -500,7 +590,32 @@ def main():
     # Add logout button at the top
     if st.sidebar.button("🚪 Logout", type="secondary"):
         st.session_state.authenticated = False
+        st.session_state.login_time = None
+        st.success("👋 Logged out successfully!")
         st.rerun()
+    
+    # Show session info
+    if st.session_state.authenticated and st.session_state.login_time:
+        current_time = time.time()
+        session_duration = 2 * 60 * 60  # 2 hours
+        remaining_time = session_duration - (current_time - st.session_state.login_time)
+        remaining_minutes = int(remaining_time / 60)
+        remaining_hours = int(remaining_minutes / 60)
+        remaining_minutes = remaining_minutes % 60
+        
+        if remaining_hours > 0:
+            session_display = f"{remaining_hours}h {remaining_minutes}m"
+        else:
+            session_display = f"{remaining_minutes}m"
+        
+        st.sidebar.info(f"🕐 Session: {session_display} remaining")
+        
+        # Add extend session button if less than 30 minutes remaining
+        if remaining_time < 30 * 60:  # Less than 30 minutes
+            if st.sidebar.button("⏰ Extend Session", type="secondary"):
+                st.session_state.login_time = time.time()  # Reset login time
+                st.success("✅ Session extended for another 2 hours!")
+                st.rerun()
     
     st.sidebar.markdown("---")
     
@@ -572,6 +687,23 @@ def show_dashboard():
     
     with col4:
         st.metric("Database Status", "✅ Active")
+    
+    # API Test section
+    st.subheader("🔧 System Diagnostics")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🧪 Test OpenAI API Connection"):
+            with st.spinner("Testing API connection..."):
+                success, message = test_openai_connection(client)
+                if success:
+                    st.success(f"✅ {message}")
+                else:
+                    st.error(f"❌ {message}")
+    
+    with col2:
+        if st.button("📊 Refresh Dashboard"):
+            st.rerun()
     
     # Win/Loss breakdown
     if total_deals > 0:
@@ -699,6 +831,26 @@ def show_upload_page(client):
                 
                 # Extract data with AI
                 extracted_data = extract_rfp_data_with_ai(content, client)
+                
+                # Check for errors in extraction
+                if isinstance(extracted_data, dict) and "error" in extracted_data:
+                    st.error(f"❌ **AI Processing Error:** {extracted_data['error']}")
+                    
+                    # Show additional debugging info if available
+                    if "json_error" in extracted_data:
+                        st.error(f"**JSON Error:** {extracted_data['json_error']}")
+                    if "raw_response" in extracted_data:
+                        with st.expander("🔍 Raw AI Response (for debugging)"):
+                            st.text(extracted_data['raw_response'])
+                    
+                    st.info("💡 **Troubleshooting Tips:**")
+                    st.markdown("""
+                    - Check your OpenAI API key and billing status
+                    - Ensure you have sufficient API credits
+                    - Try uploading a smaller document
+                    - The document might contain content that's being filtered
+                    """)
+                    return
                 
                 # Extract company name
                 company_name = None
