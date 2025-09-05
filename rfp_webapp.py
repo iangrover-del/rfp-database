@@ -625,7 +625,7 @@ def main():
     )
     
     if page == "Dashboard":
-        show_dashboard()
+        show_dashboard(client)
     elif page == "Upload Historical RFP":
         show_upload_page(client)
     elif page == "Process New RFP":
@@ -639,7 +639,7 @@ def main():
     elif page == "Export Data":
         show_export_page()
 
-def show_dashboard():
+def show_dashboard(client):
     """Show the main dashboard"""
     st.header("Dashboard")
     
