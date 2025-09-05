@@ -296,7 +296,7 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
                 {"role": "system", "content": "You are an expert at analyzing RFP documents and extracting structured information. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
@@ -447,7 +447,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
                 {"role": "system", "content": "You are an expert at matching RFP questions with existing answers. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
@@ -631,6 +631,43 @@ def show_upload_page(client):
     if uploaded_file is not None:
         st.info(f"Selected file: {uploaded_file.name}")
         
+        # Win/Loss tracking
+        st.subheader("📊 Win/Loss Tracking")
+        st.markdown("**Help the system learn from your success!**")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            win_status = st.selectbox(
+                "Was this proposal successful?",
+                ["unknown", "won", "lost", "pending"],
+                format_func=lambda x: {
+                    "unknown": "❓ Unknown/Not sure",
+                    "won": "🏆 Won the deal!",
+                    "lost": "❌ Lost the deal",
+                    "pending": "⏳ Still pending"
+                }[x]
+            )
+        
+        with col2:
+            deal_value = None
+            win_date = None
+            if win_status == "won":
+                deal_value = st.number_input("Deal Value ($)", min_value=0.0, step=1000.0, help="Enter the deal value in dollars")
+                win_date = st.date_input("Win Date", value=datetime.now().date())
+        
+        # Broker/Consultant tracking
+        st.subheader("🏢 Broker/Consultant Information")
+        st.markdown("**Track which broker or consultant brought this opportunity**")
+        
+        broker_consultant = st.text_input(
+            "Broker/Consultant Name", 
+            placeholder="e.g., Mercer, Alliant, Willis Towers Watson, etc.",
+            help="Leave blank if direct client or unknown"
+        )
+        
+        if broker_consultant:
+            st.info(f"📊 This will help track success patterns for **{broker_consultant}**")
+        
         if st.button("Upload and Process", type="primary"):
             with st.spinner("Processing document..."):
                 # Extract text
@@ -649,43 +686,6 @@ def show_upload_page(client):
                     company_info = extracted_data["Company Information"]
                     if isinstance(company_info, dict) and "Company name" in company_info:
                         company_name = company_info["Company name"]
-                
-                # Win/Loss tracking
-                st.subheader("📊 Win/Loss Tracking")
-                st.markdown("**Help the system learn from your success!**")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    win_status = st.selectbox(
-                        "Was this proposal successful?",
-                        ["unknown", "won", "lost", "pending"],
-                        format_func=lambda x: {
-                            "unknown": "❓ Unknown/Not sure",
-                            "won": "🏆 Won the deal!",
-                            "lost": "❌ Lost the deal",
-                            "pending": "⏳ Still pending"
-                        }[x]
-                    )
-                
-                with col2:
-                    deal_value = None
-                    win_date = None
-                    if win_status == "won":
-                        deal_value = st.number_input("Deal Value ($)", min_value=0.0, step=1000.0, help="Enter the deal value in dollars")
-                        win_date = st.date_input("Win Date", value=datetime.now().date())
-                
-                # Broker/Consultant tracking
-                st.subheader("🏢 Broker/Consultant Information")
-                st.markdown("**Track which broker or consultant brought this opportunity**")
-                
-                broker_consultant = st.text_input(
-                    "Broker/Consultant Name", 
-                    placeholder="e.g., Mercer, Alliant, Willis Towers Watson, etc.",
-                    help="Leave blank if direct client or unknown"
-                )
-                
-                if broker_consultant:
-                    st.info(f"📊 This will help track success patterns for **{broker_consultant}**")
                 
                 # Save to database
                 save_rfp_submission(uploaded_file.name, content, extracted_data, company_name, win_status=win_status, deal_value=deal_value, win_date=win_date.strftime('%Y-%m-%d') if win_date else None, broker_consultant=broker_consultant if broker_consultant else None)
