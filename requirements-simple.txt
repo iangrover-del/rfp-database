@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+pydantic
+boto3
+openai
+python-docx
+PyPDF2
+pandas
+numpy
+sqlalchemy
+python-dotenv
+streamlit
