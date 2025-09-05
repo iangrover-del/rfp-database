@@ -11,6 +11,63 @@ import openai
 from docx import Document
 import PyPDF2
 import io
+import hashlib
+import secrets
+
+# Authentication functions
+def hash_password(password: str) -> str:
+    """Hash a password using SHA-256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify a password against its hash"""
+    return hash_password(password) == hashed
+
+def check_authentication():
+    """Check if user is authenticated"""
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    return st.session_state.authenticated
+
+def login_page():
+    """Display login page"""
+    st.title("🔐 RFP Database Login")
+    st.markdown("Please enter the password to access the RFP Database System")
+    
+    # Get password from secrets or use default
+    try:
+        # Try to get password from Streamlit secrets
+        correct_password = st.secrets.get("APP_PASSWORD", "rfp2024")
+    except:
+        # Fallback to default password
+        correct_password = "rfp2024"
+    
+    password = st.text_input("Password", type="password", placeholder="Enter password")
+    
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("Login", type="primary", use_container_width=True):
+            if password == correct_password:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("❌ Incorrect password. Please try again.")
+    
+    st.markdown("---")
+    
+    # Show current password info
+    if correct_password == "rfp2024":
+        st.info("💡 **Current password:** `rfp2024` (Default - you can change this)")
+    else:
+        st.success("✅ **Custom password is set** (Password configured in Streamlit Cloud secrets)")
+    
+    st.markdown("### 🔧 How to Change Password:")
+    st.markdown("""
+    1. Go to your **Streamlit Cloud app settings**
+    2. Click **"Secrets"**
+    3. Add or update: `APP_PASSWORD = "your-new-password"`
+    4. Click **"Save"** - the app will restart automatically
+    """)
 
 # Configure Streamlit page
 st.set_page_config(
@@ -309,6 +366,11 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
 
 # Main Streamlit app
 def main():
+    # Check authentication first
+    if not check_authentication():
+        login_page()
+        return
+    
     st.title("📋 RFP Database System")
     st.markdown("AI-powered RFP database for automatic answer extraction and matching")
     
@@ -317,6 +379,14 @@ def main():
     
     # Sidebar navigation
     st.sidebar.title("Navigation")
+    
+    # Add logout button at the top
+    if st.sidebar.button("🚪 Logout", type="secondary"):
+        st.session_state.authenticated = False
+        st.rerun()
+    
+    st.sidebar.markdown("---")
+    
     page = st.sidebar.selectbox(
         "Choose a page",
         ["Dashboard", "Upload Historical RFP", "Process New RFP", "Upload Corrected RFP", "Browse Database", "Search"]
