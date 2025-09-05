@@ -105,6 +105,7 @@ def init_database():
             win_status TEXT DEFAULT 'unknown',
             deal_value REAL,
             win_date DATE,
+            broker_consultant TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (original_rfp_id) REFERENCES rfp_submissions (id)
         )
@@ -126,15 +127,15 @@ def init_database():
     conn.commit()
     return conn
 
-def save_rfp_submission(filename: str, content: str, extracted_data: Dict, company_name: str = None, is_corrected: bool = False, original_rfp_id: int = None, win_status: str = 'unknown', deal_value: float = None, win_date: str = None):
+def save_rfp_submission(filename: str, content: str, extracted_data: Dict, company_name: str = None, is_corrected: bool = False, original_rfp_id: int = None, win_status: str = 'unknown', deal_value: float = None, win_date: str = None, broker_consultant: str = None):
     """Save RFP submission to database"""
     conn = init_database()
     cursor = conn.cursor()
     
     cursor.execute('''
-        INSERT INTO rfp_submissions (filename, content, extracted_data, company_name, is_corrected, original_rfp_id, win_status, deal_value, win_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (filename, content, json.dumps(extracted_data), company_name, is_corrected, original_rfp_id, win_status, deal_value, win_date))
+        INSERT INTO rfp_submissions (filename, content, extracted_data, company_name, is_corrected, original_rfp_id, win_status, deal_value, win_date, broker_consultant)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (filename, content, json.dumps(extracted_data), company_name, is_corrected, original_rfp_id, win_status, deal_value, win_date, broker_consultant))
     
     conn.commit()
     conn.close()
@@ -465,7 +466,7 @@ def main():
     
     page = st.sidebar.selectbox(
         "Choose a page",
-        ["Dashboard", "Upload Historical RFP", "Process New RFP", "Upload Corrected RFP", "Browse Database", "Search"]
+        ["Dashboard", "Upload Historical RFP", "Process New RFP", "Upload Corrected RFP", "Browse Database", "Search", "Export Data"]
     )
     
     if page == "Dashboard":
@@ -480,6 +481,8 @@ def main():
         show_browse_page()
     elif page == "Search":
         show_search_page()
+    elif page == "Export Data":
+        show_export_page()
 
 def show_dashboard():
     """Show the main dashboard"""
@@ -497,6 +500,24 @@ def show_dashboard():
     total_deals = won_count + lost_count + pending_count
     win_rate = (won_count / total_deals * 100) if total_deals > 0 else 0
     total_deal_value = sum(s[6] for s in submissions if len(s) > 6 and s[6] and s[5] == 'won')
+    
+    # Broker analytics
+    broker_stats = {}
+    for submission in submissions:
+        broker = submission[8] if len(submission) > 8 and submission[8] else 'Direct/Unknown'
+        if broker not in broker_stats:
+            broker_stats[broker] = {'total': 0, 'won': 0, 'lost': 0, 'pending': 0, 'deal_value': 0}
+        
+        broker_stats[broker]['total'] += 1
+        win_status = submission[5] if len(submission) > 5 else 'unknown'
+        if win_status == 'won':
+            broker_stats[broker]['won'] += 1
+            if len(submission) > 6 and submission[6]:
+                broker_stats[broker]['deal_value'] += submission[6]
+        elif win_status == 'lost':
+            broker_stats[broker]['lost'] += 1
+        elif win_status == 'pending':
+            broker_stats[broker]['pending'] += 1
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -533,6 +554,35 @@ def show_dashboard():
                 'Count': [won_count, lost_count, pending_count, unknown_count]
             })
             st.bar_chart(chart_data.set_index('Status'))
+    
+    # Broker analytics
+    if broker_stats:
+        st.subheader("🏢 Broker/Consultant Analytics")
+        
+        # Create broker performance table
+        broker_data = []
+        for broker, stats in broker_stats.items():
+            broker_win_rate = (stats['won'] / (stats['won'] + stats['lost']) * 100) if (stats['won'] + stats['lost']) > 0 else 0
+            broker_data.append({
+                'Broker/Consultant': broker,
+                'Total RFPs': stats['total'],
+                'Won': stats['won'],
+                'Lost': stats['lost'],
+                'Pending': stats['pending'],
+                'Win Rate': f"{broker_win_rate:.1f}%",
+                'Deal Value': f"${stats['deal_value']:,.0f}" if stats['deal_value'] > 0 else "N/A"
+            })
+        
+        broker_df = pd.DataFrame(broker_data)
+        st.dataframe(broker_df, use_container_width=True)
+        
+        # Broker performance chart
+        if len(broker_stats) > 1:
+            chart_data = pd.DataFrame({
+                'Broker': list(broker_stats.keys()),
+                'Win Rate': [(stats['won'] / (stats['won'] + stats['lost']) * 100) if (stats['won'] + stats['lost']) > 0 else 0 for stats in broker_stats.values()]
+            })
+            st.bar_chart(chart_data.set_index('Broker'))
     
     # Recent submissions with win status
     st.subheader("Recent Submissions")
@@ -604,8 +654,21 @@ def show_upload_page(client):
                         deal_value = st.number_input("Deal Value ($)", min_value=0.0, step=1000.0, help="Enter the deal value in dollars")
                         win_date = st.date_input("Win Date", value=datetime.now().date())
                 
+                # Broker/Consultant tracking
+                st.subheader("🏢 Broker/Consultant Information")
+                st.markdown("**Track which broker or consultant brought this opportunity**")
+                
+                broker_consultant = st.text_input(
+                    "Broker/Consultant Name", 
+                    placeholder="e.g., Mercer, Alliant, Willis Towers Watson, etc.",
+                    help="Leave blank if direct client or unknown"
+                )
+                
+                if broker_consultant:
+                    st.info(f"📊 This will help track success patterns for **{broker_consultant}**")
+                
                 # Save to database
-                save_rfp_submission(uploaded_file.name, content, extracted_data, company_name, win_status=win_status, deal_value=deal_value, win_date=win_date.strftime('%Y-%m-%d') if win_date else None)
+                save_rfp_submission(uploaded_file.name, content, extracted_data, company_name, win_status=win_status, deal_value=deal_value, win_date=win_date.strftime('%Y-%m-%d') if win_date else None, broker_consultant=broker_consultant if broker_consultant else None)
                 
                 st.success("✅ Document uploaded and processed successfully!")
                 
@@ -903,6 +966,112 @@ def show_search_page():
                                 st.write("**Raw Data:**", result[4])
             else:
                 st.info("No results found")
+
+def show_export_page():
+    """Show the export page"""
+    st.header("📊 Export Data")
+    st.markdown("Export your RFP data for analysis and reporting")
+    
+    submissions = get_all_submissions()
+    
+    if not submissions:
+        st.info("No data to export. Upload some RFPs first!")
+        return
+    
+    # Prepare export data
+    export_data = []
+    for submission in submissions:
+        win_status = submission[5] if len(submission) > 5 else 'unknown'
+        deal_value = submission[6] if len(submission) > 6 and submission[6] else None
+        win_date = submission[7] if len(submission) > 7 and submission[7] else None
+        broker_consultant = submission[8] if len(submission) > 8 and submission[8] else None
+        
+        export_data.append({
+            'ID': submission[0],
+            'Filename': submission[1],
+            'Company': submission[2] or 'Unknown',
+            'Created Date': submission[3],
+            'Win Status': win_status,
+            'Deal Value': deal_value or 0,
+            'Win Date': win_date or '',
+            'Broker/Consultant': broker_consultant or 'Direct/Unknown',
+            'Is Corrected': submission[4] if len(submission) > 4 else False
+        })
+    
+    df = pd.DataFrame(export_data)
+    
+    st.subheader("📋 Export Options")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**📈 All Data Export**")
+        st.markdown("Complete dataset with all RFP information")
+        
+        # Convert to CSV
+        csv_data = df.to_csv(index=False)
+        
+        st.download_button(
+            label="📥 Download All Data (CSV)",
+            data=csv_data,
+            file_name=f"rfp_database_export_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+    
+    with col2:
+        st.markdown("**🏆 Winning RFPs Only**")
+        st.markdown("Export only successful proposals for analysis")
+        
+        winning_df = df[df['Win Status'] == 'won']
+        if not winning_df.empty:
+            winning_csv = winning_df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Winners (CSV)",
+                data=winning_csv,
+                file_name=f"winning_rfps_export_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No winning RFPs to export yet")
+    
+    st.subheader("🏢 Broker-Specific Exports")
+    
+    # Get unique brokers
+    brokers = df['Broker/Consultant'].unique()
+    brokers = [b for b in brokers if b != 'Direct/Unknown']
+    
+    if brokers:
+        selected_broker = st.selectbox("Select broker/consultant:", brokers)
+        
+        broker_df = df[df['Broker/Consultant'] == selected_broker]
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Total RFPs", len(broker_df))
+            st.metric("Won", len(broker_df[broker_df['Win Status'] == 'won']))
+        
+        with col2:
+            won_deals = broker_df[broker_df['Win Status'] == 'won']
+            total_value = won_deals['Deal Value'].sum()
+            win_rate = (len(won_deals) / len(broker_df[broker_df['Win Status'].isin(['won', 'lost'])]) * 100) if len(broker_df[broker_df['Win Status'].isin(['won', 'lost'])]) > 0 else 0
+            
+            st.metric("Win Rate", f"{win_rate:.1f}%")
+            st.metric("Total Deal Value", f"${total_value:,.0f}")
+        
+        # Export broker data
+        broker_csv = broker_df.to_csv(index=False)
+        st.download_button(
+            label=f"📥 Download {selected_broker} Data (CSV)",
+            data=broker_csv,
+            file_name=f"{selected_broker.replace(' ', '_')}_rfps_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+    else:
+        st.info("No broker/consultant data to export yet")
+    
+    st.subheader("📊 Data Preview")
+    st.dataframe(df, use_container_width=True)
 
 if __name__ == "__main__":
     main()
