@@ -296,7 +296,7 @@ def get_all_submissions():
     cursor = conn.cursor()
     
     cursor.execute('''
-        SELECT id, filename, company_name, created_at, extracted_data
+        SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
         FROM rfp_submissions
         ORDER BY created_at DESC
     ''')
@@ -311,7 +311,7 @@ def search_submissions(query: str):
     cursor = conn.cursor()
     
     cursor.execute('''
-        SELECT id, filename, company_name, created_at, extracted_data
+        SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
         FROM rfp_submissions
         WHERE filename LIKE ? OR company_name LIKE ? OR content LIKE ?
         ORDER BY created_at DESC
@@ -1056,6 +1056,7 @@ def show_browse_page():
         win_status = sub[5] if len(sub) > 5 else 'unknown'
         deal_value = sub[6] if len(sub) > 6 and sub[6] else None
         win_date = sub[7] if len(sub) > 7 and sub[7] else None
+        broker_consultant = sub[8] if len(sub) > 8 and sub[8] else None
         
         df_data.append({
             "ID": sub[0],
@@ -1064,7 +1065,8 @@ def show_browse_page():
             "Created": sub[3],
             "Win Status": win_status,
             "Deal Value": f"${deal_value:,.0f}" if deal_value else "N/A",
-            "Win Date": win_date or "N/A"
+            "Win Date": win_date or "N/A",
+            "Broker/Consultant": broker_consultant or "Direct/Unknown"
         })
     
     df = pd.DataFrame(df_data)
