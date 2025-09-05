@@ -111,6 +111,26 @@ def init_database():
         )
     ''')
     
+    # Check for missing columns and add them (database migration)
+    cursor.execute("PRAGMA table_info(rfp_submissions)")
+    columns = [column[1] for column in cursor.fetchall()]
+    
+    # Add missing columns if they don't exist
+    if 'is_corrected' not in columns:
+        cursor.execute('ALTER TABLE rfp_submissions ADD COLUMN is_corrected BOOLEAN DEFAULT FALSE')
+    if 'original_rfp_id' not in columns:
+        cursor.execute('ALTER TABLE rfp_submissions ADD COLUMN original_rfp_id INTEGER')
+    if 'win_status' not in columns:
+        cursor.execute('ALTER TABLE rfp_submissions ADD COLUMN win_status TEXT DEFAULT "unknown"')
+    if 'deal_value' not in columns:
+        cursor.execute('ALTER TABLE rfp_submissions ADD COLUMN deal_value REAL')
+    if 'win_date' not in columns:
+        cursor.execute('ALTER TABLE rfp_submissions ADD COLUMN win_date DATE')
+    if 'broker_consultant' not in columns:
+        cursor.execute('ALTER TABLE rfp_submissions ADD COLUMN broker_consultant TEXT')
+    
+    conn.commit()
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS rfp_answers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
