@@ -192,6 +192,26 @@ def save_corrected_answers(rfp_id: int, corrected_answers: List[Dict]):
     conn.commit()
     conn.close()
 
+def delete_rfp_submission(rfp_id: int):
+    """Delete an RFP submission and all related data"""
+    conn = init_database()
+    cursor = conn.cursor()
+    
+    try:
+        # Delete related answers first (foreign key constraint)
+        cursor.execute('DELETE FROM rfp_answers WHERE source_rfp_id = ?', (rfp_id,))
+        
+        # Delete the main submission
+        cursor.execute('DELETE FROM rfp_submissions WHERE id = ?', (rfp_id,))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
 def get_all_submissions():
     """Get all RFP submissions"""
     conn = init_database()
@@ -934,6 +954,53 @@ def show_browse_page():
             st.success("✅ Status updated successfully!")
             st.rerun()
     
+    # Delete RFP section
+    st.subheader("🗑️ Delete RFP")
+    st.markdown("**⚠️ Warning: This action cannot be undone!**")
+    
+    # Select RFP to delete
+    delete_rfp_options = {f"{sub[1]} - {sub[2] or 'Unknown'}": sub[0] for sub in submissions}
+    selected_delete_rfp = st.selectbox("Select RFP to delete:", list(delete_rfp_options.keys()), key="delete_select")
+    delete_rfp_id = delete_rfp_options[selected_delete_rfp]
+    
+    # Get details of the RFP to be deleted
+    delete_submission = next(s for s in submissions if s[0] == delete_rfp_id)
+    delete_win_status = delete_submission[5] if len(delete_submission) > 5 else 'unknown'
+    delete_deal_value = delete_submission[6] if len(delete_submission) > 6 and delete_submission[6] else None
+    
+    # Show details of what will be deleted
+    deal_value_display = f"${delete_deal_value:,.0f}" if delete_deal_value else 'N/A'
+    st.warning(f"""
+    **You are about to delete:**
+    - **File:** {delete_submission[1]}
+    - **Company:** {delete_submission[2] or 'Unknown'}
+    - **Status:** {delete_win_status.upper()}
+    - **Deal Value:** {deal_value_display}
+    - **Created:** {delete_submission[3]}
+    
+    **This will also delete:**
+    - All related answers and learning data
+    - All analytics and reporting data
+    - This action cannot be undone!
+    """)
+    
+    # Confirmation checkbox
+    confirm_delete = st.checkbox("I understand this action cannot be undone", key="confirm_delete")
+    
+    # Delete button
+    if confirm_delete:
+        if st.button("🗑️ Delete RFP Permanently", type="secondary"):
+            with st.spinner("Deleting RFP and all related data..."):
+                success = delete_rfp_submission(delete_rfp_id)
+                if success:
+                    st.success("✅ RFP deleted successfully!")
+                    st.info("🔄 The page will refresh to show updated data.")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to delete RFP. Please try again.")
+    else:
+        st.info("Please check the confirmation box to enable delete button.")
+    
     # Detailed view section
     st.subheader("📄 Detailed View")
     for submission in submissions:
@@ -941,22 +1008,69 @@ def show_browse_page():
         status_emoji = {"won": "🏆", "lost": "❌", "pending": "⏳", "unknown": "❓"}.get(win_status, "❓")
         
         with st.expander(f"{status_emoji} {submission[1]} - {submission[2] or 'Unknown Company'}"):
-            st.write(f"**Uploaded:** {submission[3]}")
-            st.write(f"**Company:** {submission[2] or 'Not specified'}")
-            st.write(f"**Win Status:** {win_status.upper()}")
+            col1, col2 = st.columns([3, 1])
             
-            if len(submission) > 6 and submission[6]:
-                st.write(f"**Deal Value:** ${submission[6]:,.0f}")
-            if len(submission) > 7 and submission[7]:
-                st.write(f"**Win Date:** {submission[7]}")
+            with col1:
+                st.write(f"**Uploaded:** {submission[3]}")
+                st.write(f"**Company:** {submission[2] or 'Not specified'}")
+                st.write(f"**Win Status:** {win_status.upper()}")
+                
+                if len(submission) > 6 and submission[6]:
+                    st.write(f"**Deal Value:** ${submission[6]:,.0f}")
+                if len(submission) > 7 and submission[7]:
+                    st.write(f"**Win Date:** {submission[7]}")
+                
+                if submission[4]:  # extracted_data
+                    try:
+                        data = json.loads(submission[4])
+                        st.write("**Extracted Information:**")
+                        st.json(data)
+                    except:
+                        st.write("**Raw Data:**", submission[4])
             
-            if submission[4]:  # extracted_data
-                try:
-                    data = json.loads(submission[4])
-                    st.write("**Extracted Information:**")
-                    st.json(data)
-                except:
-                    st.write("**Raw Data:**", submission[4])
+            with col2:
+                st.markdown("**Quick Actions**")
+                if st.button(f"🗑️ Delete", key=f"delete_quick_{submission[0]}", type="secondary"):
+                    # Use session state to store the RFP to delete
+                    st.session_state.delete_rfp_id = submission[0]
+                    st.session_state.delete_rfp_name = submission[1]
+                    st.rerun()
+    
+    # Handle quick delete confirmation
+    if 'delete_rfp_id' in st.session_state:
+        st.error(f"""
+        **⚠️ Delete Confirmation Required**
+        
+        You clicked delete for: **{st.session_state.delete_rfp_name}**
+        
+        This will permanently remove:
+        - The RFP submission
+        - All related answers and learning data
+        - All analytics and reporting data
+        
+        **This action cannot be undone!**
+        """)
+        
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col1:
+            if st.button("✅ Yes, Delete Permanently", type="primary"):
+                with st.spinner("Deleting RFP..."):
+                    success = delete_rfp_submission(st.session_state.delete_rfp_id)
+                    if success:
+                        st.success("✅ RFP deleted successfully!")
+                        # Clear session state
+                        del st.session_state.delete_rfp_id
+                        del st.session_state.delete_rfp_name
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to delete RFP. Please try again.")
+        
+        with col3:
+            if st.button("❌ Cancel", type="secondary"):
+                # Clear session state
+                del st.session_state.delete_rfp_id
+                del st.session_state.delete_rfp_name
+                st.rerun()
 
 def show_search_page():
     """Show the search page"""
