@@ -102,6 +102,9 @@ def init_database():
             company_name TEXT,
             is_corrected BOOLEAN DEFAULT FALSE,
             original_rfp_id INTEGER,
+            win_status TEXT DEFAULT 'unknown',
+            deal_value REAL,
+            win_date DATE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (original_rfp_id) REFERENCES rfp_submissions (id)
         )
@@ -123,15 +126,29 @@ def init_database():
     conn.commit()
     return conn
 
-def save_rfp_submission(filename: str, content: str, extracted_data: Dict, company_name: str = None, is_corrected: bool = False, original_rfp_id: int = None):
+def save_rfp_submission(filename: str, content: str, extracted_data: Dict, company_name: str = None, is_corrected: bool = False, original_rfp_id: int = None, win_status: str = 'unknown', deal_value: float = None, win_date: str = None):
     """Save RFP submission to database"""
     conn = init_database()
     cursor = conn.cursor()
     
     cursor.execute('''
-        INSERT INTO rfp_submissions (filename, content, extracted_data, company_name, is_corrected, original_rfp_id)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (filename, content, json.dumps(extracted_data), company_name, is_corrected, original_rfp_id))
+        INSERT INTO rfp_submissions (filename, content, extracted_data, company_name, is_corrected, original_rfp_id, win_status, deal_value, win_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (filename, content, json.dumps(extracted_data), company_name, is_corrected, original_rfp_id, win_status, deal_value, win_date))
+    
+    conn.commit()
+    conn.close()
+
+def update_win_status(rfp_id: int, win_status: str, deal_value: float = None, win_date: str = None):
+    """Update win/loss status for an RFP"""
+    conn = init_database()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        UPDATE rfp_submissions 
+        SET win_status = ?, deal_value = ?, win_date = ?
+        WHERE id = ?
+    ''', (win_status, deal_value, win_date, rfp_id))
     
     conn.commit()
     conn.close()
@@ -292,46 +309,104 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     # Create summary of existing submissions
     existing_summary = "Previous RFP Submissions:\n\n"
     
-    # Add corrected answers first (higher priority)
+    # Add corrected answers first (highest priority - 100% confidence)
     if corrected_answers:
-        existing_summary += "CORRECTED ANSWERS (High Priority):\n"
+        existing_summary += "CORRECTED ANSWERS (Highest Priority - 100% Confidence):\n"
         for answer in corrected_answers[:10]:  # Top 10 corrected answers
             existing_summary += f"Category: {answer[0]}\n"
             existing_summary += f"Question: {answer[1]}\n"
             existing_summary += f"Corrected Answer: {answer[2][:200]}...\n"
-            existing_summary += f"Confidence: {answer[3]}%\n"
+            existing_summary += f"Confidence: 100% (User-corrected)\n"
             existing_summary += "---\n"
         existing_summary += "\n"
     
-    # Add regular submissions
-    existing_summary += "HISTORICAL RFP SUBMISSIONS:\n"
-    for submission in existing_submissions[:5]:  # Limit to first 5
-        existing_summary += f"RFP: {submission[1]}\n"
-        existing_summary += f"Company: {submission[2] or 'Unknown'}\n"
-        if submission[4]:  # extracted_data
-            try:
-                data = json.loads(submission[4])
-                for category, info in data.items():
-                    if info and isinstance(info, (str, dict)):
-                        existing_summary += f"{category}: {str(info)[:200]}...\n"
-            except:
-                pass
-        existing_summary += "\n---\n\n"
+    # Add winning submissions (high priority - 95% confidence)
+    winning_submissions = [s for s in existing_submissions if len(s) > 5 and s[5] == 'won']
+    if winning_submissions:
+        existing_summary += "WINNING RFP SUBMISSIONS (High Priority - 95% Confidence - These worked!):\n"
+        for submission in winning_submissions[:3]:  # Top 3 winning submissions
+            existing_summary += f"🏆 WINNER - RFP: {submission[1]}\n"
+            existing_summary += f"Company: {submission[2] or 'Unknown'}\n"
+            if len(submission) > 6 and submission[6]:  # deal_value
+                existing_summary += f"Deal Value: ${submission[6]:,.0f}\n"
+            existing_summary += f"Confidence: 95% (Proven winner)\n"
+            if submission[4]:  # extracted_data
+                try:
+                    data = json.loads(submission[4])
+                    for category, info in data.items():
+                        if info and isinstance(info, (str, dict)):
+                            existing_summary += f"{category}: {str(info)[:200]}...\n"
+                except:
+                    pass
+            existing_summary += "\n---\n"
+        existing_summary += "\n"
+    
+    # Add unknown/pending submissions (medium priority - 80% confidence)
+    unknown_submissions = [s for s in existing_submissions if len(s) <= 5 or s[5] in ['unknown', 'pending']]
+    if unknown_submissions:
+        existing_summary += "UNKNOWN/PENDING RFP SUBMISSIONS (Medium Priority - 80% Confidence - Include these):\n"
+        for submission in unknown_submissions[:3]:  # Top 3 unknown/pending
+            win_status = submission[5] if len(submission) > 5 else 'unknown'
+            status_emoji = {"pending": "⏳", "unknown": "❓"}.get(win_status, "❓")
+            existing_summary += f"{status_emoji} RFP: {submission[1]}\n"
+            existing_summary += f"Company: {submission[2] or 'Unknown'}\n"
+            existing_summary += f"Status: {win_status.upper()}\n"
+            existing_summary += f"Confidence: 80% (Unknown outcome - might be good)\n"
+            if submission[4]:  # extracted_data
+                try:
+                    data = json.loads(submission[4])
+                    for category, info in data.items():
+                        if info and isinstance(info, (str, dict)):
+                            existing_summary += f"{category}: {str(info)[:200]}...\n"
+                except:
+                    pass
+            existing_summary += "\n---\n"
+        existing_summary += "\n"
+    
+    # Add lost submissions (lower priority - 60% confidence but still included)
+    lost_submissions = [s for s in existing_submissions if len(s) > 5 and s[5] == 'lost']
+    if lost_submissions:
+        existing_summary += "LOST RFP SUBMISSIONS (Lower Priority - 60% Confidence - Include but weight lower):\n"
+        existing_summary += "Note: These might have had good answers but lost for non-RFP reasons (budget, politics, timing, etc.)\n"
+        for submission in lost_submissions[:2]:  # Top 2 lost submissions
+            existing_summary += f"❌ LOST - RFP: {submission[1]}\n"
+            existing_summary += f"Company: {submission[2] or 'Unknown'}\n"
+            existing_summary += f"Confidence: 60% (Lost but might have good content)\n"
+            if submission[4]:  # extracted_data
+                try:
+                    data = json.loads(submission[4])
+                    for category, info in data.items():
+                        if info and isinstance(info, (str, dict)):
+                            existing_summary += f"{category}: {str(info)[:200]}...\n"
+                except:
+                    pass
+            existing_summary += "\n---\n"
+        existing_summary += "\n"
     
     prompt = f"""
-    You are helping to fill out a new RFP based on previous submissions.
+    You are helping to fill out a new RFP based on previous submissions with smart confidence weighting.
     
     {existing_summary}
     
     New RFP content:
     {new_content[:4000]}
     
+    IMPORTANT CONFIDENCE WEIGHTING RULES:
+    - CORRECTED ANSWERS: 100% confidence (user improved these)
+    - WINNING RFPs: 95% confidence (proven to work)
+    - UNKNOWN/PENDING: 80% confidence (might be good, include them)
+    - LOST RFPs: 60% confidence (include but weight lower - might have lost for non-RFP reasons)
+    
     Please analyze the new RFP and suggest answers based on the previous submissions.
+    Prioritize winning and corrected answers, but include all relevant content with appropriate confidence scores.
+    Don't ignore lost RFPs completely - they might have had great answers that just didn't win for other reasons.
+    
     For each question or section in the new RFP, provide:
     1. The question/section identified
     2. A suggested answer based on previous submissions
-    3. A confidence score (0-100) for how well the answer matches
+    3. A confidence score (0-100) based on the source RFP's win status
     4. The source RFP that provided the best answer
+    5. The source RFP's win status
     
     Format your response as JSON with this structure:
     {{
@@ -341,7 +416,8 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
                 "suggested_answer": "answer text",
                 "confidence": 85,
                 "source_rfp": "filename.pdf",
-                "category": "company_info|technical|business|etc"
+                "category": "company_info|technical|business|etc",
+                "source_status": "won|lost|unknown|pending|corrected"
             }}
         ],
         "overall_confidence": 75
@@ -412,30 +488,62 @@ def show_dashboard():
     # Get statistics
     submissions = get_all_submissions()
     
+    # Calculate win/loss metrics
+    won_count = len([s for s in submissions if len(s) > 5 and s[5] == 'won'])
+    lost_count = len([s for s in submissions if len(s) > 5 and s[5] == 'lost'])
+    pending_count = len([s for s in submissions if len(s) > 5 and s[5] == 'pending'])
+    unknown_count = len([s for s in submissions if len(s) <= 5 or s[5] == 'unknown'])
+    
+    total_deals = won_count + lost_count + pending_count
+    win_rate = (won_count / total_deals * 100) if total_deals > 0 else 0
+    total_deal_value = sum(s[6] for s in submissions if len(s) > 6 and s[6] and s[5] == 'won')
+    
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric("Total Submissions", len(submissions))
     
     with col2:
-        companies = len(set([s[2] for s in submissions if s[2]]))
-        st.metric("Unique Companies", companies)
+        st.metric("Win Rate", f"{win_rate:.1f}%", f"{won_count}/{total_deals}")
     
     with col3:
-        if submissions:
-            latest = submissions[0][3]
-            st.metric("Latest Upload", latest[:10] if latest else "None")
-        else:
-            st.metric("Latest Upload", "None")
+        st.metric("Won Deals", won_count, f"${total_deal_value:,.0f}" if total_deal_value > 0 else "")
     
     with col4:
         st.metric("Database Status", "✅ Active")
     
-    # Recent submissions
+    # Win/Loss breakdown
+    if total_deals > 0:
+        st.subheader("📊 Win/Loss Analytics")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("🏆 Won", won_count, f"{win_rate:.1f}%")
+        with col2:
+            st.metric("❌ Lost", lost_count)
+        with col3:
+            st.metric("⏳ Pending", pending_count)
+        with col4:
+            st.metric("❓ Unknown", unknown_count)
+        
+        # Win rate chart
+        if won_count > 0 or lost_count > 0:
+            chart_data = pd.DataFrame({
+                'Status': ['Won', 'Lost', 'Pending', 'Unknown'],
+                'Count': [won_count, lost_count, pending_count, unknown_count]
+            })
+            st.bar_chart(chart_data.set_index('Status'))
+    
+    # Recent submissions with win status
     st.subheader("Recent Submissions")
     if submissions:
-        df = pd.DataFrame(submissions, columns=["ID", "Filename", "Company", "Created", "Data"])
-        st.dataframe(df[["Filename", "Company", "Created"]], use_container_width=True)
+        # Show last 5 submissions with win status
+        recent_submissions = submissions[-5:]
+        for submission in reversed(recent_submissions):
+            win_status = submission[5] if len(submission) > 5 else 'unknown'
+            status_emoji = {"won": "🏆", "lost": "❌", "pending": "⏳", "unknown": "❓"}.get(win_status, "❓")
+            deal_info = f" (${submission[6]:,.0f})" if len(submission) > 6 and submission[6] and win_status == 'won' else ""
+            st.write(f"{status_emoji} **{submission[1]}** - {submission[2] or 'Unknown Company'} ({submission[3].strftime('%Y-%m-%d') if hasattr(submission[3], 'strftime') else submission[3]}){deal_info}")
     else:
         st.info("No submissions found. Upload some historical RFPs to get started!")
 
@@ -472,8 +580,32 @@ def show_upload_page(client):
                     if isinstance(company_info, dict) and "Company name" in company_info:
                         company_name = company_info["Company name"]
                 
+                # Win/Loss tracking
+                st.subheader("📊 Win/Loss Tracking")
+                st.markdown("**Help the system learn from your success!**")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    win_status = st.selectbox(
+                        "Was this proposal successful?",
+                        ["unknown", "won", "lost", "pending"],
+                        format_func=lambda x: {
+                            "unknown": "❓ Unknown/Not sure",
+                            "won": "🏆 Won the deal!",
+                            "lost": "❌ Lost the deal",
+                            "pending": "⏳ Still pending"
+                        }[x]
+                    )
+                
+                with col2:
+                    deal_value = None
+                    win_date = None
+                    if win_status == "won":
+                        deal_value = st.number_input("Deal Value ($)", min_value=0.0, step=1000.0, help="Enter the deal value in dollars")
+                        win_date = st.date_input("Win Date", value=datetime.now().date())
+                
                 # Save to database
-                save_rfp_submission(uploaded_file.name, content, extracted_data, company_name)
+                save_rfp_submission(uploaded_file.name, content, extracted_data, company_name, win_status=win_status, deal_value=deal_value, win_date=win_date.strftime('%Y-%m-%d') if win_date else None)
                 
                 st.success("✅ Document uploaded and processed successfully!")
                 
@@ -634,23 +766,114 @@ def show_browse_page():
     
     submissions = get_all_submissions()
     
-    if submissions:
-        st.write(f"Found {len(submissions)} submissions")
-        
-        for submission in submissions:
-            with st.expander(f"📄 {submission[1]} - {submission[2] or 'Unknown Company'}"):
-                st.write(f"**Uploaded:** {submission[3]}")
-                st.write(f"**Company:** {submission[2] or 'Not specified'}")
-                
-                if submission[4]:  # extracted_data
-                    try:
-                        data = json.loads(submission[4])
-                        st.write("**Extracted Information:**")
-                        st.json(data)
-                    except:
-                        st.write("**Raw Data:**", submission[4])
-    else:
+    if not submissions:
         st.info("No submissions found. Upload some historical RFPs to get started!")
+        return
+    
+    st.subheader("📊 RFP Management")
+    st.markdown("View and update win/loss status for your RFPs")
+    
+    # Create a more detailed DataFrame
+    df_data = []
+    for sub in submissions:
+        win_status = sub[5] if len(sub) > 5 else 'unknown'
+        deal_value = sub[6] if len(sub) > 6 and sub[6] else None
+        win_date = sub[7] if len(sub) > 7 and sub[7] else None
+        
+        df_data.append({
+            "ID": sub[0],
+            "Filename": sub[1],
+            "Company": sub[2] or "Unknown",
+            "Created": sub[3],
+            "Win Status": win_status,
+            "Deal Value": f"${deal_value:,.0f}" if deal_value else "N/A",
+            "Win Date": win_date or "N/A"
+        })
+    
+    df = pd.DataFrame(df_data)
+    
+    # Display the dataframe
+    st.dataframe(df, use_container_width=True)
+    
+    # Win/Loss status update section
+    st.subheader("🔄 Update Win/Loss Status")
+    
+    # Select RFP to update
+    rfp_options = {f"{sub[1]} - {sub[2] or 'Unknown'}": sub[0] for sub in submissions}
+    selected_rfp = st.selectbox("Select RFP to update:", list(rfp_options.keys()))
+    rfp_id = rfp_options[selected_rfp]
+    
+    # Get current status
+    current_submission = next(s for s in submissions if s[0] == rfp_id)
+    current_status = current_submission[5] if len(current_submission) > 5 else 'unknown'
+    current_deal_value = current_submission[6] if len(current_submission) > 6 and current_submission[6] else None
+    current_win_date = current_submission[7] if len(current_submission) > 7 and current_submission[7] else None
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        new_status = st.selectbox(
+            "Update Status:",
+            ["unknown", "won", "lost", "pending"],
+            index=["unknown", "won", "lost", "pending"].index(current_status),
+            format_func=lambda x: {
+                "unknown": "❓ Unknown/Not sure",
+                "won": "🏆 Won the deal!",
+                "lost": "❌ Lost the deal",
+                "pending": "⏳ Still pending"
+            }[x]
+        )
+    
+    with col2:
+        new_deal_value = None
+        new_win_date = None
+        if new_status == "won":
+            new_deal_value = st.number_input(
+                "Deal Value ($)", 
+                min_value=0.0, 
+                step=1000.0, 
+                value=current_deal_value or 0.0,
+                help="Enter the deal value in dollars"
+            )
+            new_win_date = st.date_input(
+                "Win Date", 
+                value=datetime.strptime(current_win_date, '%Y-%m-%d').date() if current_win_date else datetime.now().date()
+            )
+    
+    if st.button("Update Status", type="primary"):
+        with st.spinner("Updating status..."):
+            update_win_status(
+                rfp_id, 
+                new_status, 
+                new_deal_value if new_deal_value and new_deal_value > 0 else None,
+                new_win_date.strftime('%Y-%m-%d') if new_win_date else None
+            )
+            st.success("✅ Status updated successfully!")
+            st.rerun()
+    
+    # Detailed view section
+    st.subheader("📄 Detailed View")
+    for submission in submissions:
+        win_status = submission[5] if len(submission) > 5 else 'unknown'
+        status_emoji = {"won": "🏆", "lost": "❌", "pending": "⏳", "unknown": "❓"}.get(win_status, "❓")
+        
+        with st.expander(f"{status_emoji} {submission[1]} - {submission[2] or 'Unknown Company'}"):
+            st.write(f"**Uploaded:** {submission[3]}")
+            st.write(f"**Company:** {submission[2] or 'Not specified'}")
+            st.write(f"**Win Status:** {win_status.upper()}")
+            
+            if len(submission) > 6 and submission[6]:
+                st.write(f"**Deal Value:** ${submission[6]:,.0f}")
+            if len(submission) > 7 and submission[7]:
+                st.write(f"**Win Date:** {submission[7]}")
+            
+            if submission[4]:  # extracted_data
+                try:
+                    data = json.loads(submission[4])
+                    st.write("**Extracted Information:**")
+                    st.json(data)
+                except:
+                    st.write("**Raw Data:**", submission[4])
 
 def show_search_page():
     """Show the search page"""
