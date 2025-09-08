@@ -70,7 +70,33 @@ def check_authentication():
             
             return True
     
-    return st.session_state.authenticated
+    return False
+
+def check_public_access():
+    """Check if the app is publicly accessible and show warning"""
+    # Check if we're running on Streamlit Cloud
+    try:
+        # This will work on Streamlit Cloud
+        if hasattr(st, '_is_running_with_streamlit') and st._is_running_with_streamlit:
+            st.error("🚨 **SECURITY WARNING**: This app is publicly accessible!")
+            st.warning("Anyone with the URL can access your RFP database. Consider adding additional security measures.")
+            
+            # Suggest security improvements
+            with st.expander("🔒 Security Recommendations"):
+                st.markdown("""
+                **To secure your app:**
+                1. **Change the default password** in Streamlit Cloud secrets
+                2. **Use a strong, unique password**
+                3. **Don't share the URL** publicly
+                4. **Monitor who has access**
+                
+                **Current password:** `rfp2024` (change this!)
+                """)
+            
+            return True
+    except:
+        pass
+    return False
 
 def login_page():
     """Display login page"""
@@ -694,6 +720,9 @@ def main():
     
     st.title("📋 RFP Database System")
     st.markdown("AI-powered RFP database for automatic answer extraction and matching")
+    
+    # Show security warning if publicly accessible
+    check_public_access()
     
     # Initialize OpenAI client
     client = init_openai()
