@@ -519,40 +519,50 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         existing_summary += "\n"
     
     prompt = f"""
-    You are helping to fill out a new RFP based on previous submissions with smart confidence weighting.
+    You are an expert RFP analyst helping to fill out a new RFP based on previous submissions. Use SEMANTIC MATCHING - match concepts and topics, not exact words.
     
     {existing_summary}
     
     New RFP content:
     {new_content[:4000]}
     
-    IMPORTANT CONFIDENCE WEIGHTING RULES:
+    IMPORTANT MATCHING STRATEGY:
+    1. Look for CONCEPTUAL SIMILARITIES, not exact question matches
+    2. Match topics like: company info, technical requirements, business objectives, security, compliance, etc.
+    3. Extract key themes and find similar themes in previous RFPs
+    4. Use your knowledge to suggest relevant answers even if questions are worded differently
+    
+    CONFIDENCE WEIGHTING RULES:
     - CORRECTED ANSWERS: 100% confidence (user improved these)
     - WINNING RFPs: 95% confidence (proven to work)
     - UNKNOWN/PENDING: 80% confidence (might be good, include them)
     - LOST RFPs: 60% confidence (include but weight lower - might have lost for non-RFP reasons)
     
-    Please analyze the new RFP and suggest answers based on the previous submissions.
-    Prioritize winning and corrected answers, but include all relevant content with appropriate confidence scores.
-    Don't ignore lost RFPs completely - they might have had great answers that just didn't win for other reasons.
+    MATCHING APPROACH:
+    - If new RFP asks about "company background" and old RFP has "company information" → MATCH
+    - If new RFP asks about "security measures" and old RFP has "security requirements" → MATCH
+    - If new RFP asks about "project timeline" and old RFP has "implementation schedule" → MATCH
+    - Look for similar business concepts, technical topics, compliance areas, etc.
     
-    For each question or section in the new RFP, provide:
-    1. The question/section identified
-    2. A suggested answer based on previous submissions
+    For each section/topic in the new RFP, provide:
+    1. The topic/section identified (even if question is different)
+    2. A suggested answer based on similar content from previous submissions
     3. A confidence score (0-100) based on the source RFP's win status
     4. The source RFP that provided the best answer
     5. The source RFP's win status
+    6. The category/theme matched
     
     Format your response as JSON with this structure:
     {{
         "matches": [
             {{
-                "question": "question text",
+                "question": "topic/section identified",
                 "suggested_answer": "answer text",
                 "confidence": 85,
                 "source_rfp": "filename.pdf",
-                "category": "company_info|technical|business|etc",
-                "source_status": "won|lost|unknown|pending|corrected"
+                "category": "company_info|technical|business|security|compliance|timeline|etc",
+                "source_status": "won|lost|unknown|pending|corrected",
+                "matching_reason": "brief explanation of why this matches"
             }}
         ],
         "overall_confidence": 75
@@ -563,7 +573,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert at matching RFP questions with existing answers. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert RFP analyst specializing in semantic matching. You understand that different RFPs ask similar questions in different ways. Match concepts and topics, not exact words. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
@@ -931,8 +941,41 @@ def show_process_page(client):
                             st.write(f"**Confidence:** {match.get('confidence', 0)}%")
                             st.write(f"**Source:** {match.get('source_rfp', 'N/A')}")
                             st.write(f"**Category:** {match.get('category', 'N/A')}")
+                            if match.get('matching_reason'):
+                                st.write(f"**Why this matches:** {match.get('matching_reason')}")
                 else:
-                    st.info("No matching answers found. Upload more historical RFPs to improve matching.")
+                    st.warning("⚠️ No specific matches found, but here are some general suggestions:")
+                    
+                    # Provide general suggestions based on common RFP topics
+                    general_suggestions = [
+                        {
+                            "topic": "Company Information",
+                            "suggestion": "Include your company's background, years in business, key achievements, and relevant experience in the industry.",
+                            "confidence": 50
+                        },
+                        {
+                            "topic": "Technical Capabilities", 
+                            "suggestion": "Highlight your technical expertise, relevant certifications, and experience with similar projects.",
+                            "confidence": 50
+                        },
+                        {
+                            "topic": "Project Approach",
+                            "suggestion": "Describe your methodology, project phases, timeline, and how you ensure quality delivery.",
+                            "confidence": 50
+                        },
+                        {
+                            "topic": "Team Qualifications",
+                            "suggestion": "Introduce key team members, their qualifications, and relevant experience for this project.",
+                            "confidence": 50
+                        }
+                    ]
+                    
+                    for suggestion in general_suggestions:
+                        with st.expander(f"💡 {suggestion['topic']} (General Suggestion)"):
+                            st.write(f"**Suggestion:** {suggestion['suggestion']}")
+                            st.write(f"**Confidence:** {suggestion['confidence']}% (General guidance)")
+                    
+                    st.info("💡 **Tip:** Upload more historical RFPs to get more specific, tailored suggestions!")
                 
                 # Download results
                 if matches:
