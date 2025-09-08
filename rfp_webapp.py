@@ -14,6 +14,8 @@ import io
 import hashlib
 import secrets
 import time
+import openpyxl
+import xlrd
 
 # Authentication functions
 def hash_password(password: str) -> str:
@@ -341,10 +343,74 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
             return text
         elif file_extension == 'txt':
             return file_content.decode('utf-8')
+        elif file_extension in ['xlsx', 'xls']:
+            return extract_excel_content(file_content, file_extension)
         else:
             return "Unsupported file format"
     except Exception as e:
         return f"Error extracting text: {str(e)}"
+
+def extract_excel_content(file_content: bytes, file_extension: str) -> str:
+    """Extract content from Excel files, handling Q&A format"""
+    try:
+        # Create a temporary file to work with
+        with tempfile.NamedTemporaryFile(suffix=f'.{file_extension}', delete=False) as tmp_file:
+            tmp_file.write(file_content)
+            tmp_file_path = tmp_file.name
+        
+        try:
+            # Read Excel file
+            if file_extension == 'xlsx':
+                df = pd.read_excel(tmp_file_path, engine='openpyxl')
+            else:  # xls
+                df = pd.read_excel(tmp_file_path, engine='xlrd')
+            
+            # Convert to text, handling Q&A format
+            text_content = ""
+            
+            # Check if this looks like a Q&A format (questions in one column, answers in next)
+            if len(df.columns) >= 2:
+                # Look for patterns that suggest Q&A format
+                first_col = df.iloc[:, 0].astype(str).str.lower()
+                second_col = df.iloc[:, 1].astype(str).str.lower()
+                
+                # Check if first column contains questions (has question marks, starts with question words)
+                has_questions = first_col.str.contains(r'\?|what|how|when|where|why|who|which', na=False).any()
+                has_answers = second_col.str.len().mean() > 20  # Answers are typically longer
+                
+                if has_questions and has_answers:
+                    # Format as Q&A pairs
+                    text_content += "RFP QUESTIONS AND ANSWERS:\n\n"
+                    for idx, row in df.iterrows():
+                        question = str(row.iloc[0]).strip()
+                        answer = str(row.iloc[1]).strip()
+                        
+                        if question and answer and question != 'nan' and answer != 'nan':
+                            text_content += f"Q: {question}\n"
+                            text_content += f"A: {answer}\n\n"
+                else:
+                    # Standard table format
+                    text_content += "RFP DATA:\n\n"
+                    for idx, row in df.iterrows():
+                        row_text = " | ".join([str(cell) for cell in row if str(cell) != 'nan'])
+                        if row_text.strip():
+                            text_content += row_text + "\n"
+            else:
+                # Single column or simple format
+                text_content += "RFP CONTENT:\n\n"
+                for idx, row in df.iterrows():
+                    row_text = " ".join([str(cell) for cell in row if str(cell) != 'nan'])
+                    if row_text.strip():
+                        text_content += row_text + "\n"
+            
+            return text_content
+            
+        finally:
+            # Clean up temporary file
+            os.unlink(tmp_file_path)
+            
+    except Exception as e:
+        return f"Error processing Excel file: {str(e)}"
 
 def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     """Extract structured data from RFP using AI"""
@@ -808,8 +874,8 @@ def show_upload_page(client):
     
     uploaded_file = st.file_uploader(
         "Choose an RFP file",
-        type=['pdf', 'docx', 'txt'],
-        help="Supported formats: PDF, DOCX, TXT"
+        type=['pdf', 'docx', 'txt', 'xlsx', 'xls'],
+        help="Supported formats: PDF, DOCX, TXT, Excel (XLSX, XLS)"
     )
     
     if uploaded_file is not None:
@@ -907,8 +973,8 @@ def show_process_page(client):
     
     uploaded_file = st.file_uploader(
         "Choose a new RFP file",
-        type=['pdf', 'docx', 'txt'],
-        help="Upload a new RFP to get suggested answers"
+        type=['pdf', 'docx', 'txt', 'xlsx', 'xls'],
+        help="Upload a new RFP to get suggested answers. Supports PDF, DOCX, TXT, Excel (XLSX, XLS)"
     )
     
     if uploaded_file is not None:
@@ -1007,8 +1073,8 @@ def show_corrected_upload_page(client):
     st.subheader("Step 2: Upload Corrected RFP")
     uploaded_file = st.file_uploader(
         "Choose your corrected RFP file",
-        type=['pdf', 'docx', 'txt'],
-        help="Upload the RFP with your corrections and improvements"
+        type=['pdf', 'docx', 'txt', 'xlsx', 'xls'],
+        help="Upload the RFP with your corrections and improvements. Supports PDF, DOCX, TXT, Excel (XLSX, XLS)"
     )
     
     if uploaded_file is not None:
