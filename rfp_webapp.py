@@ -393,7 +393,7 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
         return f"Error extracting text: {str(e)}"
 
 def extract_excel_content(file_content: bytes, file_extension: str) -> str:
-    """Extract content from Excel files, handling Q&A format"""
+    """Extract content from Excel files, handling Q&A format and multiple tabs"""
     try:
         # Create a temporary file to work with
         with tempfile.NamedTemporaryFile(suffix=f'.{file_extension}', delete=False) as tmp_file:
@@ -401,49 +401,65 @@ def extract_excel_content(file_content: bytes, file_extension: str) -> str:
             tmp_file_path = tmp_file.name
         
         try:
-            # Read Excel file
+            # Read Excel file and get all sheet names
             if file_extension == 'xlsx':
-                df = pd.read_excel(tmp_file_path, engine='openpyxl')
+                excel_file = pd.ExcelFile(tmp_file_path, engine='openpyxl')
             else:  # xls
-                df = pd.read_excel(tmp_file_path, engine='xlrd')
+                excel_file = pd.ExcelFile(tmp_file_path, engine='xlrd')
             
-            # Convert to text, handling Q&A format
+            sheet_names = excel_file.sheet_names
             text_content = ""
             
-            # Check if this looks like a Q&A format (questions in one column, answers in next)
-            if len(df.columns) >= 2:
-                # Look for patterns that suggest Q&A format
-                first_col = df.iloc[:, 0].astype(str).str.lower()
-                second_col = df.iloc[:, 1].astype(str).str.lower()
+            # Process each sheet
+            for sheet_name in sheet_names:
+                df = pd.read_excel(tmp_file_path, sheet_name=sheet_name, engine=excel_file.engine)
                 
-                # Check if first column contains questions (has question marks, starts with question words)
-                has_questions = first_col.str.contains(r'\?|what|how|when|where|why|who|which', na=False).any()
-                has_answers = second_col.str.len().mean() > 20  # Answers are typically longer
+                # Skip empty sheets
+                if df.empty:
+                    continue
                 
-                if has_questions and has_answers:
-                    # Format as Q&A pairs
-                    text_content += "RFP QUESTIONS AND ANSWERS:\n\n"
-                    for idx, row in df.iterrows():
-                        question = str(row.iloc[0]).strip()
-                        answer = str(row.iloc[1]).strip()
-                        
-                        if question and answer and question != 'nan' and answer != 'nan':
-                            text_content += f"Q: {question}\n"
-                            text_content += f"A: {answer}\n\n"
+                # Add sheet header
+                if len(sheet_names) > 1:
+                    text_content += f"\n=== SHEET: {sheet_name} ===\n\n"
+                
+                # Check if this looks like a Q&A format (questions in one column, answers in next)
+                if len(df.columns) >= 2:
+                    # Look for patterns that suggest Q&A format
+                    first_col = df.iloc[:, 0].astype(str).str.lower()
+                    second_col = df.iloc[:, 1].astype(str).str.lower()
+                    
+                    # Check if first column contains questions (has question marks, starts with question words)
+                    has_questions = first_col.str.contains(r'\?|what|how|when|where|why|who|which', na=False).any()
+                    has_answers = second_col.str.len().mean() > 20  # Answers are typically longer
+                    
+                    if has_questions and has_answers:
+                        # Format as Q&A pairs
+                        text_content += "RFP QUESTIONS AND ANSWERS:\n\n"
+                        for idx, row in df.iterrows():
+                            question = str(row.iloc[0]).strip()
+                            answer = str(row.iloc[1]).strip()
+                            
+                            if question and answer and question != 'nan' and answer != 'nan':
+                                text_content += f"Q: {question}\n"
+                                text_content += f"A: {answer}\n\n"
+                    else:
+                        # Standard table format
+                        text_content += "RFP DATA:\n\n"
+                        for idx, row in df.iterrows():
+                            row_text = " | ".join([str(cell) for cell in row if str(cell) != 'nan'])
+                            if row_text.strip():
+                                text_content += row_text + "\n"
                 else:
-                    # Standard table format
-                    text_content += "RFP DATA:\n\n"
+                    # Single column or simple format
+                    text_content += "RFP CONTENT:\n\n"
                     for idx, row in df.iterrows():
-                        row_text = " | ".join([str(cell) for cell in row if str(cell) != 'nan'])
+                        row_text = " ".join([str(cell) for cell in row if str(cell) != 'nan'])
                         if row_text.strip():
                             text_content += row_text + "\n"
-            else:
-                # Single column or simple format
-                text_content += "RFP CONTENT:\n\n"
-                for idx, row in df.iterrows():
-                    row_text = " ".join([str(cell) for cell in row if str(cell) != 'nan'])
-                    if row_text.strip():
-                        text_content += row_text + "\n"
+                
+                # Add separator between sheets
+                if len(sheet_names) > 1:
+                    text_content += "\n" + "="*50 + "\n"
             
             return text_content
             
