@@ -14,8 +14,14 @@ import io
 import hashlib
 import secrets
 import time
-import openpyxl
-import xlrd
+
+# Optional Excel imports - will be imported only if available
+try:
+    import openpyxl
+    import xlrd
+    EXCEL_SUPPORT = True
+except ImportError:
+    EXCEL_SUPPORT = False
 
 # Authentication functions
 def hash_password(password: str) -> str:
@@ -344,7 +350,10 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
         elif file_extension == 'txt':
             return file_content.decode('utf-8')
         elif file_extension in ['xlsx', 'xls']:
-            return extract_excel_content(file_content, file_extension)
+            if EXCEL_SUPPORT:
+                return extract_excel_content(file_content, file_extension)
+            else:
+                return "Excel support not available. Please convert to PDF or DOCX format."
         else:
             return "Unsupported file format"
     except Exception as e:
@@ -872,10 +881,18 @@ def show_upload_page(client):
     st.header("Upload Historical RFP")
     st.markdown("Upload historical RFP documents to build your knowledge base")
     
+    # Determine supported file types
+    if EXCEL_SUPPORT:
+        file_types = ['pdf', 'docx', 'txt', 'xlsx', 'xls']
+        help_text = "Supported formats: PDF, DOCX, TXT, Excel (XLSX, XLS)"
+    else:
+        file_types = ['pdf', 'docx', 'txt']
+        help_text = "Supported formats: PDF, DOCX, TXT (Excel support not available)"
+    
     uploaded_file = st.file_uploader(
         "Choose an RFP file",
-        type=['pdf', 'docx', 'txt', 'xlsx', 'xls'],
-        help="Supported formats: PDF, DOCX, TXT, Excel (XLSX, XLS)"
+        type=file_types,
+        help=help_text
     )
     
     if uploaded_file is not None:
@@ -971,10 +988,18 @@ def show_process_page(client):
     st.header("Process New RFP")
     st.markdown("Upload a new RFP to get AI-suggested answers based on your historical submissions")
     
+    # Determine supported file types
+    if EXCEL_SUPPORT:
+        file_types = ['pdf', 'docx', 'txt', 'xlsx', 'xls']
+        help_text = "Upload a new RFP to get suggested answers. Supports PDF, DOCX, TXT, Excel (XLSX, XLS)"
+    else:
+        file_types = ['pdf', 'docx', 'txt']
+        help_text = "Upload a new RFP to get suggested answers. Supports PDF, DOCX, TXT (Excel support not available)"
+    
     uploaded_file = st.file_uploader(
         "Choose a new RFP file",
-        type=['pdf', 'docx', 'txt', 'xlsx', 'xls'],
-        help="Upload a new RFP to get suggested answers. Supports PDF, DOCX, TXT, Excel (XLSX, XLS)"
+        type=file_types,
+        help=help_text
     )
     
     if uploaded_file is not None:
@@ -1071,10 +1096,18 @@ def show_corrected_upload_page(client):
     original_rfp_id = rfp_options[selected_rfp]
     
     st.subheader("Step 2: Upload Corrected RFP")
+    # Determine supported file types
+    if EXCEL_SUPPORT:
+        file_types = ['pdf', 'docx', 'txt', 'xlsx', 'xls']
+        help_text = "Upload the RFP with your corrections and improvements. Supports PDF, DOCX, TXT, Excel (XLSX, XLS)"
+    else:
+        file_types = ['pdf', 'docx', 'txt']
+        help_text = "Upload the RFP with your corrections and improvements. Supports PDF, DOCX, TXT (Excel support not available)"
+    
     uploaded_file = st.file_uploader(
         "Choose your corrected RFP file",
-        type=['pdf', 'docx', 'txt', 'xlsx', 'xls'],
-        help="Upload the RFP with your corrections and improvements. Supports PDF, DOCX, TXT, Excel (XLSX, XLS)"
+        type=file_types,
+        help=help_text
     )
     
     if uploaded_file is not None:
