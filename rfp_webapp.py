@@ -572,19 +572,25 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     """Extract structured data from RFP using AI"""
     
     prompt = f"""
-    TASK: Extract EVERY SINGLE QUESTION from this RFP document.
+    You are a question extraction machine. Your ONLY job is to find and list EVERY SINGLE QUESTION in this document.
     
-    STEP-BY-STEP PROCESS:
-    1. Go through the document page by page
-    2. Look for ANY text that asks for information
-    3. Find questions that end with "?"
-    4. Find questions that start with "What", "How", "When", "Where", "Why", "Who", "Which", "Describe", "Explain", "Provide", "List", "Please", "Can you"
-    5. Look for numbered items that ask for information
-    6. Look for bullet points that ask for information
-    7. Look for table headers that ask for information
-    8. Look for any text that requests specific details
+    CRITICAL RULES:
+    1. Extract the EXACT wording of every question
+    2. Do NOT summarize, categorize, or paraphrase
+    3. Do NOT group similar questions together
+    4. List EVERY question separately, even if they seem similar
+    5. Include questions from ALL sheets/tabs in Excel files
+    6. Include questions from ALL pages in PDFs
     
-    EXAMPLES OF WHAT TO EXTRACT:
+    WHAT TO EXTRACT:
+    - Any text ending with "?"
+    - Any text starting with "What", "How", "When", "Where", "Why", "Who", "Which", "Describe", "Explain", "Provide", "List", "Please", "Can you", "Do you", "Are you", "Will you"
+    - Any numbered items that ask for information
+    - Any bullet points that ask for information
+    - Any table headers that ask for information
+    - Any text that requests specific details or information
+    
+    EXAMPLES:
     - "What is your company's annual revenue?"
     - "How many employees do you serve?"
     - "Describe your technology platform"
@@ -594,8 +600,8 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     - "1. Company Information:"
     - "• Experience with financial services:"
     - "Vendor Qualifications:"
-    
-    CRITICAL: Extract the EXACT wording. Do NOT summarize or paraphrase.
+    - "Complete the following table:"
+    - "Submit the following documents:"
     
     RESPONSE FORMAT (JSON only):
     {{
@@ -605,7 +611,8 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
             "Exact question 3 as written in document?"
         ],
         "question_count": "total number of questions found",
-        "pages_analyzed": "list of page numbers where questions were found"
+        "sheets_analyzed": "list of sheet names analyzed (for Excel files)",
+        "pages_analyzed": "list of page numbers analyzed (for PDFs)"
     }}
     
     Document content:
@@ -622,7 +629,7 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are a question extraction robot. Your ONLY task is to find and extract EVERY SINGLE QUESTION from the RFP document. Go through the document word by word and extract the exact wording of every question, request, or information requirement. Do not summarize, do not paraphrase, do not categorize. Just extract the exact text. Always respond with valid JSON."},
+                {"role": "system", "content": "You are a question extraction machine. Your ONLY task is to find and list EVERY SINGLE QUESTION from the RFP document. Go through the document word by word and extract the exact wording of every question, request, or information requirement. Do not summarize, do not paraphrase, do not categorize, do not group similar questions. List every question separately. Extract questions from ALL sheets in Excel files and ALL pages in PDFs. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
