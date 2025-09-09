@@ -455,9 +455,12 @@ def extract_excel_content(file_content: bytes, file_extension: str) -> str:
                 if df.empty:
                     continue
                 
-            # Add sheet header
-            if len(sheet_names) > 1:
-                text_content += f"\n=== SHEET: {sheet_name} ===\n"
+                # Add sheet header
+                if len(sheet_names) > 1:
+                    text_content += f"\n=== SHEET: {sheet_name} ===\n"
+                else:
+                    text_content += f"\n=== SHEET: {sheet_name} ===\n"
+                
                 text_content += f"Sheet dimensions: {df.shape[0]} rows x {df.shape[1]} columns\n"
                 text_content += f"Sheet content preview: {str(df.head(3).to_dict())}\n\n"
                 
