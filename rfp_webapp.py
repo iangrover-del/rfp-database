@@ -1174,6 +1174,12 @@ def show_upload_page(client):
                     st.error(f"❌ {content}")
                     return
                 
+                # Show raw extracted content for debugging
+                st.subheader("🔍 Debug: Raw Extracted Content")
+                st.write(f"**Total content length:** {len(content)} characters")
+                st.text_area("Content preview (first 2000 chars):", content[:2000], height=200)
+                st.text_area("Content preview (last 2000 chars):", content[-2000:], height=200)
+                
                 # Extract data with AI
                 extracted_data = extract_rfp_data_with_ai(content, client)
                 
