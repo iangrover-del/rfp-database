@@ -616,7 +616,35 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         try:
             return json.loads(response_content)
         except json.JSONDecodeError as json_error:
-            # If JSON parsing fails, return the raw response for debugging
+            # Try to extract JSON from markdown code blocks
+            try:
+                # Look for JSON in markdown code blocks
+                if "```json" in response_content:
+                    # Extract content between ```json and ```
+                    start = response_content.find("```json") + 7
+                    end = response_content.find("```", start)
+                    if end != -1:
+                        json_content = response_content[start:end].strip()
+                        return json.loads(json_content)
+                elif "```" in response_content:
+                    # Extract content between ``` and ```
+                    start = response_content.find("```") + 3
+                    end = response_content.find("```", start)
+                    if end != -1:
+                        json_content = response_content[start:end].strip()
+                        return json.loads(json_content)
+                
+                # If no code blocks, try to find JSON object boundaries
+                if "{" in response_content and "}" in response_content:
+                    start = response_content.find("{")
+                    end = response_content.rfind("}") + 1
+                    json_content = response_content[start:end]
+                    return json.loads(json_content)
+                    
+            except json.JSONDecodeError:
+                pass
+            
+            # If all parsing attempts fail, return the raw response for debugging
             return {
                 "error": f"AI returned invalid JSON. Raw response: {response_content[:500]}...",
                 "json_error": str(json_error),
@@ -793,7 +821,35 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         try:
             return json.loads(response_content)
         except json.JSONDecodeError as json_error:
-            # If JSON parsing fails, return the raw response for debugging
+            # Try to extract JSON from markdown code blocks
+            try:
+                # Look for JSON in markdown code blocks
+                if "```json" in response_content:
+                    # Extract content between ```json and ```
+                    start = response_content.find("```json") + 7
+                    end = response_content.find("```", start)
+                    if end != -1:
+                        json_content = response_content[start:end].strip()
+                        return json.loads(json_content)
+                elif "```" in response_content:
+                    # Extract content between ``` and ```
+                    start = response_content.find("```") + 3
+                    end = response_content.find("```", start)
+                    if end != -1:
+                        json_content = response_content[start:end].strip()
+                        return json.loads(json_content)
+                
+                # If no code blocks, try to find JSON object boundaries
+                if "{" in response_content and "}" in response_content:
+                    start = response_content.find("{")
+                    end = response_content.rfind("}") + 1
+                    json_content = response_content[start:end]
+                    return json.loads(json_content)
+                    
+            except json.JSONDecodeError:
+                pass
+            
+            # If all parsing attempts fail, return the raw response for debugging
             return {
                 "matches": [],
                 "confidence": 0,
