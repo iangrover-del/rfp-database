@@ -571,119 +571,142 @@ def extract_csv_content(file_content: bytes) -> str:
 def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     """Extract structured data from RFP using AI"""
     
-    prompt = f"""
-    You are a question extraction machine. Your ONLY job is to find and list EVERY SINGLE QUESTION in this document.
+    # Split content into chunks to ensure we don't miss anything
+    chunk_size = 8000
+    chunks = [content[i:i+chunk_size] for i in range(0, len(content), chunk_size)]
     
-    CRITICAL RULES:
-    1. Extract the EXACT wording of every question
-    2. Do NOT summarize, categorize, or paraphrase
-    3. Do NOT group similar questions together
-    4. List EVERY question separately, even if they seem similar
-    5. Include questions from ALL sheets/tabs in Excel files
-    6. Include questions from ALL pages in PDFs
+    all_questions = []
+    sheets_analyzed = set()
+    pages_analyzed = set()
     
-    WHAT TO EXTRACT:
-    - Any text ending with "?"
-    - Any text starting with "What", "How", "When", "Where", "Why", "Who", "Which", "Describe", "Explain", "Provide", "List", "Please", "Can you", "Do you", "Are you", "Will you"
-    - Any numbered items that ask for information
-    - Any bullet points that ask for information
-    - Any table headers that ask for information
-    - Any text that requests specific details or information
-    
-    EXAMPLES:
-    - "What is your company's annual revenue?"
-    - "How many employees do you serve?"
-    - "Describe your technology platform"
-    - "Please provide your company background"
-    - "List your key capabilities"
-    - "Can you provide references?"
-    - "1. Company Information:"
-    - "• Experience with financial services:"
-    - "Vendor Qualifications:"
-    - "Complete the following table:"
-    - "Submit the following documents:"
-    
-    RESPONSE FORMAT (JSON only):
-    {{
-        "all_questions_found": [
-            "Exact question 1 as written in document?",
-            "Exact question 2 as written in document?",
-            "Exact question 3 as written in document?"
-        ],
-        "question_count": "total number of questions found",
-        "sheets_analyzed": "list of sheet names analyzed (for Excel files)",
-        "pages_analyzed": "list of page numbers analyzed (for PDFs)"
-    }}
-    
-    Document content:
-    {content[:15000]}
-    
-    DEBUG INFO:
-    - Total content length: {len(content)} characters
-    - Content being processed: {len(content[:15000])} characters
-    - Content preview (first 1000 chars): {content[:1000]}
-    - Content preview (last 1000 chars): {content[-1000:]}
-    """
-    
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
-            messages=[
-                {"role": "system", "content": "You are a question extraction machine. Your ONLY task is to find and list EVERY SINGLE QUESTION from the RFP document. Go through the document word by word and extract the exact wording of every question, request, or information requirement. Do not summarize, do not paraphrase, do not categorize, do not group similar questions. List every question separately. Extract questions from ALL sheets in Excel files and ALL pages in PDFs. Always respond with valid JSON."},
-                {"role": "user", "content": prompt}
+    for i, chunk in enumerate(chunks):
+        prompt = f"""
+        You are a question extraction machine. Your ONLY job is to find and list EVERY SINGLE QUESTION in this document chunk.
+        
+        CRITICAL RULES:
+        1. Extract the EXACT wording of every question
+        2. Do NOT summarize, categorize, or paraphrase
+        3. Do NOT group similar questions together
+        4. List EVERY question separately, even if they seem similar
+        5. Include questions from ALL sheets/tabs in Excel files
+        6. Include questions from ALL pages in PDFs
+        
+        WHAT TO EXTRACT:
+        - Any text ending with "?"
+        - Any text starting with "What", "How", "When", "Where", "Why", "Who", "Which", "Describe", "Explain", "Provide", "List", "Please", "Can you", "Do you", "Are you", "Will you"
+        - Any numbered items that ask for information
+        - Any bullet points that ask for information
+        - Any table headers that ask for information
+        - Any text that requests specific details or information
+        
+        EXAMPLES:
+        - "What is your company's annual revenue?"
+        - "How many employees do you serve?"
+        - "Describe your technology platform"
+        - "Please provide your company background"
+        - "List your key capabilities"
+        - "Can you provide references?"
+        - "1. Company Information:"
+        - "• Experience with financial services:"
+        - "Vendor Qualifications:"
+        - "Complete the following table:"
+        - "Submit the following documents:"
+        
+        RESPONSE FORMAT (JSON only):
+        {{
+            "all_questions_found": [
+                "Exact question 1 as written in document?",
+                "Exact question 2 as written in document?",
+                "Exact question 3 as written in document?"
             ],
-            temperature=0.1,
-            max_tokens=4000
-        )
+            "question_count": "total number of questions found in this chunk",
+            "sheets_analyzed": "list of sheet names analyzed (for Excel files)",
+            "pages_analyzed": "list of page numbers analyzed (for PDFs)"
+        }}
         
-        # Get the response content
-        response_content = response.choices[0].message.content
+        Document chunk {i+1} of {len(chunks)}:
+        {chunk}
+        """
         
-        # Check if response is empty
-        if not response_content or response_content.strip() == "":
-            return {"error": "AI returned empty response. This might be due to API quota limits or content filtering."}
-        
-        # Try to parse JSON
         try:
-            return json.loads(response_content)
-        except json.JSONDecodeError as json_error:
-            # Try to extract JSON from markdown code blocks
-            try:
-                # Look for JSON in markdown code blocks
-                if "```json" in response_content:
-                    # Extract content between ```json and ```
-                    start = response_content.find("```json") + 7
-                    end = response_content.find("```", start)
-                    if end != -1:
-                        json_content = response_content[start:end].strip()
-                        return json.loads(json_content)
-                elif "```" in response_content:
-                    # Extract content between ``` and ```
-                    start = response_content.find("```") + 3
-                    end = response_content.find("```", start)
-                    if end != -1:
-                        json_content = response_content[start:end].strip()
-                        return json.loads(json_content)
-                
-                # If no code blocks, try to find JSON object boundaries
-                if "{" in response_content and "}" in response_content:
-                    start = response_content.find("{")
-                    end = response_content.rfind("}") + 1
-                    json_content = response_content[start:end]
-                    return json.loads(json_content)
-                    
-            except json.JSONDecodeError:
-                pass
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a question extraction machine. Your ONLY task is to find and list EVERY SINGLE QUESTION from this document chunk. Go through the chunk word by word and extract the exact wording of every question, request, or information requirement. Do not summarize, do not paraphrase, do not categorize, do not group similar questions. List every question separately. Always respond with valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                max_tokens=4000
+            )
             
-            # If all parsing attempts fail, return the raw response for debugging
-            return {
-                "error": f"AI returned invalid JSON. Raw response: {response_content[:500]}...",
-                "json_error": str(json_error),
-                "raw_response": response_content
-            }
-        
-    except Exception as e:
-        return {"error": f"Failed to extract data: {str(e)}"}
+            # Get the response content
+            response_content = response.choices[0].message.content
+            
+            # Check if response is empty
+            if not response_content or response_content.strip() == "":
+                continue
+            
+            # Try to extract JSON from the response
+            try:
+                # First try to extract JSON from markdown code blocks
+                if "```json" in response_content:
+                    json_start = response_content.find("```json") + 7
+                    json_end = response_content.find("```", json_start)
+                    if json_end != -1:
+                        json_str = response_content[json_start:json_end].strip()
+                    else:
+                        json_str = response_content[json_start:].strip()
+                elif "```" in response_content:
+                    json_start = response_content.find("```") + 3
+                    json_end = response_content.find("```", json_start)
+                    if json_end != -1:
+                        json_str = response_content[json_start:json_end].strip()
+                    else:
+                        json_str = response_content[json_start:].strip()
+                else:
+                    # Try to find JSON object boundaries
+                    json_start = response_content.find("{")
+                    json_end = response_content.rfind("}") + 1
+                    if json_start != -1 and json_end > json_start:
+                        json_str = response_content[json_start:json_end]
+                    else:
+                        json_str = response_content
+                
+                # Parse the JSON
+                chunk_data = json.loads(json_str)
+                
+                # Extract questions from this chunk
+                if "all_questions_found" in chunk_data:
+                    all_questions.extend(chunk_data["all_questions_found"])
+                
+                # Track sheets and pages analyzed
+                if "sheets_analyzed" in chunk_data:
+                    sheets_analyzed.update(chunk_data["sheets_analyzed"].split(", ") if chunk_data["sheets_analyzed"] else [])
+                if "pages_analyzed" in chunk_data:
+                    pages_analyzed.update(chunk_data["pages_analyzed"].split(", ") if chunk_data["pages_analyzed"] else [])
+                    
+            except json.JSONDecodeError as e:
+                # If JSON parsing fails, return error with raw response
+                return {
+                    "error": f"AI returned invalid JSON for chunk {i+1}",
+                    "json_error": str(e),
+                    "raw_response": response_content
+                }
+            except Exception as e:
+                return {
+                    "error": f"Error processing chunk {i+1}: {str(e)}",
+                    "raw_response": response_content
+                }
+    
+    # Combine all results
+    final_result = {
+        "all_questions_found": all_questions,
+        "question_count": len(all_questions),
+        "sheets_analyzed": list(sheets_analyzed) if sheets_analyzed else [],
+        "pages_analyzed": list(pages_analyzed) if pages_analyzed else []
+    }
+    
+    return final_result
 
 def find_matching_answers(new_content: str, existing_submissions: List, client) -> Dict[str, Any]:
     """Find matching answers for new RFP"""
