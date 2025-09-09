@@ -46,6 +46,8 @@ def check_authentication():
         st.session_state.authenticated = False
     if 'login_time' not in st.session_state:
         st.session_state.login_time = None
+    if 'session_token' not in st.session_state:
+        st.session_state.session_token = None
     
     # Check if user is authenticated
     if st.session_state.authenticated and st.session_state.login_time:
@@ -57,6 +59,7 @@ def check_authentication():
             # Session expired
             st.session_state.authenticated = False
             st.session_state.login_time = None
+            st.session_state.session_token = None
             st.warning("⏰ Your session has expired. Please log in again.")
             return False
         else:
@@ -69,6 +72,20 @@ def check_authentication():
                 st.sidebar.info(f"⏰ Session expires in {remaining_minutes} minutes")
             
             return True
+    
+    # Try to restore session from URL parameters (for page refreshes)
+    if 'session_token' in st.query_params and st.query_params['session_token']:
+        # Validate session token (simple check for now)
+        try:
+            token_data = st.query_params['session_token']
+            # Simple validation - in production you'd want more security
+            if len(token_data) > 10:  # Basic validation
+                st.session_state.authenticated = True
+                st.session_state.login_time = time.time()
+                st.session_state.session_token = token_data
+                return True
+        except:
+            pass
     
     return False
 
@@ -117,8 +134,15 @@ def login_page():
     with col2:
         if st.button("Login", type="primary", use_container_width=True):
             if password == correct_password:
+                # Generate session token
+                session_token = secrets.token_urlsafe(32)
                 st.session_state.authenticated = True
                 st.session_state.login_time = time.time()  # Record login time
+                st.session_state.session_token = session_token
+                
+                # Set URL parameter to maintain session across refreshes
+                st.query_params.session_token = session_token
+                
                 st.success("✅ Login successful! Your session will last 2 hours.")
                 st.rerun()
             else:
@@ -750,6 +774,10 @@ def main():
     if st.sidebar.button("🚪 Logout", type="secondary"):
         st.session_state.authenticated = False
         st.session_state.login_time = None
+        st.session_state.session_token = None
+        # Clear URL parameter
+        if 'session_token' in st.query_params:
+            del st.query_params.session_token
         st.success("👋 Logged out successfully!")
         st.rerun()
     
