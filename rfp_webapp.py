@@ -605,9 +605,9 @@ def extract_csv_content(file_content: bytes) -> str:
 def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     """Extract structured data from RFP using AI"""
     
-    # Split content into chunks with overlap to ensure we don't miss anything
-    chunk_size = 12000
-    overlap = 2000
+    # Split content into smaller chunks with more overlap to ensure we don't miss anything
+    chunk_size = 8000  # Smaller chunks for better processing
+    overlap = 3000     # More overlap to catch questions at boundaries
     chunks = []
     for i in range(0, len(content), chunk_size - overlap):
         chunk = content[i:i+chunk_size]
@@ -639,7 +639,7 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         7. Include questions from tables, forms, and structured sections
         8. Look for implicit questions (text that requests information even without "?")
         
-        WHAT TO EXTRACT (be very inclusive):
+        WHAT TO EXTRACT (be extremely inclusive - extract EVERYTHING that asks for information):
         - Direct questions ending with "?"
         - Requests starting with "What", "How", "When", "Where", "Why", "Who", "Which", "Describe", "Explain", "Provide", "List", "Please", "Can you", "Do you", "Are you", "Will you"
         - Numbered items that ask for information (even without "?")
@@ -649,6 +649,11 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         - Form fields that need to be filled out
         - Requirements that need to be addressed
         - Sections that ask for documentation or evidence
+        - Instructions that ask for specific information
+        - Prompts that require responses
+        - Any text that ends with a colon and asks for information
+        - Any text that says "include", "provide", "submit", "attach", "complete", "fill out"
+        - Any text that asks for "details", "information", "processes", "procedures", "requirements"
         
         EXAMPLES OF WHAT TO EXTRACT:
         - "What is your company's annual revenue?"
@@ -827,7 +832,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
             if len(submission) > 6 and submission[6]:  # deal_value
                 existing_summary += f"Deal Value: ${submission[6]:,.0f}\n"
             existing_summary += f"Confidence: 95% (Proven winner)\n"
-            if submission[4]:  # extracted_data
+            if submission[4]:  # extracted_data or extracted_answers
                 try:
                     data = json.loads(submission[4])
                     for category, info in data.items():
@@ -849,7 +854,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
             existing_summary += f"Company: {submission[2] or 'Unknown'}\n"
             existing_summary += f"Status: {win_status.upper()}\n"
             existing_summary += f"Confidence: 80% (Unknown outcome - might be good)\n"
-            if submission[4]:  # extracted_data
+            if submission[4]:  # extracted_data or extracted_answers
                 try:
                     data = json.loads(submission[4])
                     for category, info in data.items():
@@ -869,7 +874,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
             existing_summary += f"❌ LOST - RFP: {submission[1]}\n"
             existing_summary += f"Company: {submission[2] or 'Unknown'}\n"
             existing_summary += f"Confidence: 60% (Lost but might have good content)\n"
-            if submission[4]:  # extracted_data
+            if submission[4]:  # extracted_data or extracted_answers
                 try:
                     data = json.loads(submission[4])
                     for category, info in data.items():
@@ -881,7 +886,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         existing_summary += "\n"
     
     # Add a critical note about content requirements
-    existing_summary += "🚨 CRITICAL INSTRUCTION: Only use ACTUAL content from the above submissions. Do NOT create placeholder text like '[specific details]' or '[explained]'. If no relevant content exists, say 'No specific answer found in previous submissions'.\n\n"
+    existing_summary += "🚨 CRITICAL INSTRUCTION: Only use ACTUAL content from the above submissions. Do NOT create placeholder text like '[specific details]' or '[explained]'. Do NOT generate generic responses like 'We have detailed...' or 'Our processes include...'. If no relevant content exists, say 'No specific answer found in previous submissions'.\n\n"
     
     prompt = f"""
     You are an expert RFP analyst helping to fill out a new RFP based on previous submissions. Your job is to find the BEST matching answers for each question in the new RFP.
@@ -945,7 +950,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide accurate, relevant answers using ONLY actual content from previous RFPs. NEVER use placeholder text like '[specific details]' or '[explained]' - only use real content from the source documents. If no good match exists, say 'No specific answer found in previous submissions'. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide accurate, relevant answers using ONLY actual content from previous RFPs. NEVER use placeholder text like '[specific details]' or '[explained]'. NEVER generate generic responses like 'We have detailed...' or 'Our processes include...'. Only use real, specific content from the source documents. If no good match exists, say 'No specific answer found in previous submissions'. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
@@ -1775,7 +1780,7 @@ def show_browse_page():
                 if len(submission) > 7 and submission[7]:
                     st.write(f"**Win Date:** {submission[7]}")
                 
-                if submission[4]:  # extracted_data
+                if submission[4]:  # extracted_data or extracted_answers
                     try:
                         data = json.loads(submission[4])
                         st.write("**Extracted Information:**")
