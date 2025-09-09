@@ -681,9 +681,18 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
                 
                 # Track sheets and pages analyzed
                 if "sheets_analyzed" in chunk_data:
-                    sheets_analyzed.update(chunk_data["sheets_analyzed"].split(", ") if chunk_data["sheets_analyzed"] else [])
+                    sheets_data = chunk_data["sheets_analyzed"]
+                    if isinstance(sheets_data, str):
+                        sheets_analyzed.update(sheets_data.split(", ") if sheets_data else [])
+                    elif isinstance(sheets_data, list):
+                        sheets_analyzed.update(sheets_data)
+                
                 if "pages_analyzed" in chunk_data:
-                    pages_analyzed.update(chunk_data["pages_analyzed"].split(", ") if chunk_data["pages_analyzed"] else [])
+                    pages_data = chunk_data["pages_analyzed"]
+                    if isinstance(pages_data, str):
+                        pages_analyzed.update(pages_data.split(", ") if pages_data else [])
+                    elif isinstance(pages_data, list):
+                        pages_analyzed.update(pages_data)
                     
             except json.JSONDecodeError as e:
                 # If JSON parsing fails, return error with raw response
