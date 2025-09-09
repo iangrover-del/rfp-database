@@ -411,6 +411,8 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
                 return extract_excel_content(file_content, file_extension)
             else:
                 return "Excel support not available. Please convert to PDF or DOCX format."
+        elif file_extension == 'csv':
+            return extract_csv_content(file_content)
         else:
             return "Unsupported file format"
     except Exception as e:
@@ -493,6 +495,58 @@ def extract_excel_content(file_content: bytes, file_extension: str) -> str:
             
     except Exception as e:
         return f"Error processing Excel file: {str(e)}"
+
+def extract_csv_content(file_content: bytes) -> str:
+    """Extract content from CSV files, handling Q&A format"""
+    try:
+        # Decode the CSV content
+        csv_content = file_content.decode('utf-8')
+        
+        # Read CSV using pandas
+        from io import StringIO
+        df = pd.read_csv(StringIO(csv_content))
+        
+        text_content = "RFP DATA (CSV):\n\n"
+        
+        # Check if this looks like a Q&A format (questions in one column, answers in next)
+        if len(df.columns) >= 2:
+            # Look for patterns that suggest Q&A format
+            first_col = df.iloc[:, 0].astype(str).str.lower()
+            second_col = df.iloc[:, 1].astype(str).str.lower()
+            
+            # Check if first column contains questions (has question marks, starts with question words)
+            has_questions = first_col.str.contains(r'\?|what|how|when|where|why|who|which', na=False).any()
+            has_answers = second_col.str.len().mean() > 20  # Answers are typically longer
+            
+            if has_questions and has_answers:
+                # Format as Q&A pairs
+                text_content += "RFP QUESTIONS AND ANSWERS:\n\n"
+                for idx, row in df.iterrows():
+                    question = str(row.iloc[0]).strip()
+                    answer = str(row.iloc[1]).strip()
+                    
+                    if question and answer and question != 'nan' and answer != 'nan':
+                        text_content += f"Q: {question}\n"
+                        text_content += f"A: {answer}\n\n"
+            else:
+                # Standard table format
+                text_content += "RFP DATA:\n\n"
+                for idx, row in df.iterrows():
+                    row_text = " | ".join([str(cell) for cell in row if str(cell) != 'nan'])
+                    if row_text.strip():
+                        text_content += row_text + "\n"
+        else:
+            # Single column or simple format
+            text_content += "RFP CONTENT:\n\n"
+            for idx, row in df.iterrows():
+                row_text = " ".join([str(cell) for cell in row if str(cell) != 'nan'])
+                if row_text.strip():
+                    text_content += row_text + "\n"
+        
+        return text_content
+        
+    except Exception as e:
+        return f"Error processing CSV file: {str(e)}"
 
 def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     """Extract structured data from RFP using AI"""
@@ -963,11 +1017,11 @@ def show_upload_page(client):
     
     # Determine supported file types
     if check_excel_support():
-        file_types = ['pdf', 'docx', 'txt', 'xlsx', 'xls']
-        help_text = "Supported formats: PDF, DOCX, TXT, Excel (XLSX, XLS)"
+        file_types = ['pdf', 'docx', 'txt', 'xlsx', 'xls', 'csv']
+        help_text = "Supported formats: PDF, DOCX, TXT, Excel (XLSX, XLS), CSV"
     else:
-        file_types = ['pdf', 'docx', 'txt']
-        help_text = "Supported formats: PDF, DOCX, TXT (Excel support not available)"
+        file_types = ['pdf', 'docx', 'txt', 'csv']
+        help_text = "Supported formats: PDF, DOCX, TXT, CSV (Excel support not available)"
     
     uploaded_file = st.file_uploader(
         "Choose an RFP file",
@@ -1070,11 +1124,11 @@ def show_process_page(client):
     
     # Determine supported file types
     if check_excel_support():
-        file_types = ['pdf', 'docx', 'txt', 'xlsx', 'xls']
-        help_text = "Upload a new RFP to get suggested answers. Supports PDF, DOCX, TXT, Excel (XLSX, XLS)"
+        file_types = ['pdf', 'docx', 'txt', 'xlsx', 'xls', 'csv']
+        help_text = "Upload a new RFP to get suggested answers. Supports PDF, DOCX, TXT, Excel (XLSX, XLS), CSV"
     else:
-        file_types = ['pdf', 'docx', 'txt']
-        help_text = "Upload a new RFP to get suggested answers. Supports PDF, DOCX, TXT (Excel support not available)"
+        file_types = ['pdf', 'docx', 'txt', 'csv']
+        help_text = "Upload a new RFP to get suggested answers. Supports PDF, DOCX, TXT, CSV (Excel support not available)"
     
     uploaded_file = st.file_uploader(
         "Choose a new RFP file",
@@ -1178,11 +1232,11 @@ def show_corrected_upload_page(client):
     st.subheader("Step 2: Upload Corrected RFP")
     # Determine supported file types
     if check_excel_support():
-        file_types = ['pdf', 'docx', 'txt', 'xlsx', 'xls']
-        help_text = "Upload the RFP with your corrections and improvements. Supports PDF, DOCX, TXT, Excel (XLSX, XLS)"
+        file_types = ['pdf', 'docx', 'txt', 'xlsx', 'xls', 'csv']
+        help_text = "Upload the RFP with your corrections and improvements. Supports PDF, DOCX, TXT, Excel (XLSX, XLS), CSV"
     else:
-        file_types = ['pdf', 'docx', 'txt']
-        help_text = "Upload the RFP with your corrections and improvements. Supports PDF, DOCX, TXT (Excel support not available)"
+        file_types = ['pdf', 'docx', 'txt', 'csv']
+        help_text = "Upload the RFP with your corrections and improvements. Supports PDF, DOCX, TXT, CSV (Excel support not available)"
     
     uploaded_file = st.file_uploader(
         "Choose your corrected RFP file",
