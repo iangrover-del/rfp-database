@@ -485,12 +485,43 @@ def extract_excel_content(file_content: bytes, file_extension: str) -> str:
                                 text_content += f"Q: {question}\n"
                                 text_content += f"A: {answer}\n\n"
                     else:
-                        # Standard table format
-                        text_content += "RFP DATA:\n\n"
-                        for idx, row in df.iterrows():
-                            row_text = " | ".join([str(cell) for cell in row if str(cell) != 'nan'])
-                            if row_text.strip():
-                                text_content += row_text + "\n"
+                        # Check if this is a question table (like "Network Questions" with "Vendor Response")
+                        table_headers = [str(col).lower() for col in df.columns]
+                        is_question_table = any(keyword in ' '.join(table_headers) for keyword in 
+                                              ['question', 'vendor response', 'response', 'answer', 'requirement'])
+                        
+                        if is_question_table:
+                            # Format as structured question table
+                            text_content += "RFP QUESTION TABLE:\n\n"
+                            # Add column headers
+                            header_row = " | ".join([str(col) for col in df.columns])
+                            text_content += f"HEADERS: {header_row}\n\n"
+                            
+                            # Process each row as a question
+                            for idx, row in df.iterrows():
+                                row_data = []
+                                for cell in row:
+                                    cell_str = str(cell).strip()
+                                    if cell_str and cell_str != 'nan':
+                                        row_data.append(cell_str)
+                                
+                                if row_data:
+                                    # Format as structured question
+                                    if len(row_data) >= 2:
+                                        text_content += f"TABLE QUESTION: {row_data[0]}\n"
+                                        text_content += f"RESPONSE FIELD: {row_data[1] if len(row_data) > 1 else 'N/A'}\n"
+                                        if len(row_data) > 2:
+                                            text_content += f"ADDITIONAL INFO: {' | '.join(row_data[2:])}\n"
+                                        text_content += "\n"
+                                    else:
+                                        text_content += f"TABLE ITEM: {' | '.join(row_data)}\n"
+                        else:
+                            # Standard table format
+                            text_content += "RFP DATA:\n\n"
+                            for idx, row in df.iterrows():
+                                row_text = " | ".join([str(cell) for cell in row if str(cell) != 'nan'])
+                                if row_text.strip():
+                                    text_content += row_text + "\n"
                 else:
                     # Single column or simple format
                     text_content += "RFP CONTENT:\n\n"
@@ -613,6 +644,8 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         - Any bullet points that ask for information
         - Any table headers that ask for information
         - Any text that requests specific details or information
+        - TABLE QUESTIONS: Extract questions from tables with headers like "Network Questions", "Vendor Response", "Requirements", etc.
+        - STRUCTURED QUESTIONS: Extract questions from table rows, even if they don't end with "?"
         
         EXAMPLES:
         - "What is your company's annual revenue?"
@@ -626,6 +659,10 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         - "Vendor Qualifications:"
         - "Complete the following table:"
         - "Submit the following documents:"
+        - "Network Questions: Provider count for mental health services"
+        - "Vendor Response: Average wait times for appointments"
+        - "Requirements: Technology platform capabilities"
+        - "Response Field: Implementation timeline"
         
         RESPONSE FORMAT (JSON only):
         {{
