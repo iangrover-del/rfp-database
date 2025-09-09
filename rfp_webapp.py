@@ -811,6 +811,17 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     # Create summary of existing submissions
     existing_summary = "Previous RFP Submissions:\n\n"
     
+    # Debug: Print what we're working with
+    print(f"DEBUG: Found {len(existing_submissions)} existing submissions")
+    for i, sub in enumerate(existing_submissions[:3]):  # Show first 3
+        print(f"DEBUG: Submission {i+1}: {sub[1]} | Content length: {len(str(sub[4])) if len(sub) > 4 and sub[4] else 0}")
+        if len(sub) > 4 and sub[4]:
+            try:
+                data = json.loads(sub[4])
+                print(f"DEBUG: Data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+            except:
+                print(f"DEBUG: Could not parse data")
+    
     # Add corrected answers first (highest priority - 100% confidence)
     if corrected_answers:
         existing_summary += "CORRECTED ANSWERS (Highest Priority - 100% Confidence):\n"
@@ -888,6 +899,9 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     # Add a critical note about content requirements
     existing_summary += "🚨 CRITICAL INSTRUCTION: Use ACTUAL content from the above submissions when available. Avoid placeholder text like '[specific details]' or '[explained]'. If you find relevant content in the submissions above, use it even if it's not a perfect match. Only say 'No specific answer found in previous submissions' if there is truly no relevant content available.\n\n"
     
+    # Debug: Add information about what content is available
+    existing_summary += f"DEBUG INFO: Total submissions available: {len(existing_submissions)}, Corrected answers: {len(corrected_answers) if corrected_answers else 0}\n\n"
+    
     prompt = f"""
     You are an expert RFP analyst helping to fill out a new RFP based on previous submissions. Your job is to find the BEST matching answers for each question in the new RFP.
     
@@ -917,7 +931,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     - PREFER using ACTUAL content from previous RFP submissions when available
     - Avoid placeholder text like "[specific details]" or "[explained]" - use real content instead
     - If you find relevant content in previous submissions, use it even if it's not a perfect match
-    - Only say "No specific answer found in previous submissions" if there is truly no relevant content
+    - If no specific content is found, provide a helpful general response based on the question type
     - Make sure the answer is appropriate for the question being asked
     - Use the best available content from your historical RFPs
     
@@ -951,7 +965,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide accurate, relevant answers using actual content from previous RFPs when available. Avoid placeholder text like '[specific details]' or '[explained]'. Use the best available content from your historical RFPs, even if it's not a perfect match. Only say 'No specific answer found in previous submissions' if there is truly no relevant content. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide accurate, relevant answers using actual content from previous RFPs when available. Avoid placeholder text like '[specific details]' or '[explained]'. Use the best available content from your historical RFPs, even if it's not a perfect match. If no specific content is found, provide a helpful general response based on the question type. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,  # Balanced for good responses
