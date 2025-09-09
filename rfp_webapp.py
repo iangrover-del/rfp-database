@@ -627,49 +627,54 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     
     for i, chunk in enumerate(chunks):
         prompt = f"""
-        You are a question extraction machine. Your ONLY job is to find and list EVERY SINGLE QUESTION in this document chunk.
+        You are an expert RFP question extraction specialist. Your task is to find and extract EVERY SINGLE QUESTION, REQUEST, or INFORMATION REQUIREMENT from this document chunk.
         
-        CRITICAL RULES:
-        1. Extract the EXACT wording of every question
-        2. Do NOT summarize, categorize, or paraphrase
-        3. Do NOT group similar questions together
-        4. List EVERY question separately, even if they seem similar
-        5. Include questions from ALL sheets/tabs in Excel files
-        6. Include questions from ALL pages in PDFs
+        CRITICAL INSTRUCTIONS:
+        1. Read through the ENTIRE chunk carefully, word by word
+        2. Extract the EXACT wording of every question, request, or information requirement
+        3. Include questions that end with "?" AND questions that don't end with "?"
+        4. Include numbered items, bullet points, table headers, and any text that asks for information
+        5. Do NOT summarize, paraphrase, or group similar questions
+        6. List EVERY question separately, even if they seem similar
+        7. Include questions from tables, forms, and structured sections
+        8. Look for implicit questions (text that requests information even without "?")
         
-        WHAT TO EXTRACT:
-        - Any text ending with "?"
-        - Any text starting with "What", "How", "When", "Where", "Why", "Who", "Which", "Describe", "Explain", "Provide", "List", "Please", "Can you", "Do you", "Are you", "Will you"
-        - Any numbered items that ask for information
-        - Any bullet points that ask for information
-        - Any table headers that ask for information
-        - Any text that requests specific details or information
-        - TABLE QUESTIONS: Extract questions from tables with headers like "Network Questions", "Vendor Response", "Requirements", etc.
-        - STRUCTURED QUESTIONS: Extract questions from table rows, even if they don't end with "?"
+        WHAT TO EXTRACT (be very inclusive):
+        - Direct questions ending with "?"
+        - Requests starting with "What", "How", "When", "Where", "Why", "Who", "Which", "Describe", "Explain", "Provide", "List", "Please", "Can you", "Do you", "Are you", "Will you"
+        - Numbered items that ask for information (even without "?")
+        - Bullet points that ask for information
+        - Table headers that ask for information
+        - Any text that requests specific details, information, or responses
+        - Form fields that need to be filled out
+        - Requirements that need to be addressed
+        - Sections that ask for documentation or evidence
         
-        EXAMPLES:
+        EXAMPLES OF WHAT TO EXTRACT:
         - "What is your company's annual revenue?"
         - "How many employees do you serve?"
         - "Describe your technology platform"
         - "Please provide your company background"
         - "List your key capabilities"
         - "Can you provide references?"
-        - "1. Company Information:"
-        - "• Experience with financial services:"
-        - "Vendor Qualifications:"
-        - "Complete the following table:"
-        - "Submit the following documents:"
+        - "1. Company Information:" (if it's asking for company info)
+        - "• Experience with financial services:" (if it's asking for experience)
+        - "Vendor Qualifications:" (if it's asking for qualifications)
+        - "Complete the following table:" (if it's asking to fill out a table)
+        - "Submit the following documents:" (if it's asking for documents)
         - "Network Questions: Provider count for mental health services"
         - "Vendor Response: Average wait times for appointments"
         - "Requirements: Technology platform capabilities"
         - "Response Field: Implementation timeline"
+        - "Please provide evidence of..." (even without "?")
+        - "Include details about..." (even without "?")
         
         RESPONSE FORMAT (JSON only):
         {{
             "all_questions_found": [
-                "Exact question 1 as written in document?",
-                "Exact question 2 as written in document?",
-                "Exact question 3 as written in document?"
+                "Exact question 1 as written in document",
+                "Exact question 2 as written in document",
+                "Exact question 3 as written in document"
             ],
             "question_count": "total number of questions found in this chunk",
             "sheets_analyzed": "list of sheet names analyzed (for Excel files)",
@@ -684,7 +689,7 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a question extraction machine. Your ONLY task is to find and list EVERY SINGLE QUESTION from this document chunk. Go through the chunk word by word and extract the exact wording of every question, request, or information requirement. Do not summarize, do not paraphrase, do not categorize, do not group similar questions. List every question separately. Always respond with valid JSON."},
+                    {"role": "system", "content": "You are an expert RFP question extraction specialist. Your ONLY task is to find and list EVERY SINGLE QUESTION, REQUEST, or INFORMATION REQUIREMENT from this document chunk. Go through the chunk word by word and extract the exact wording of every question, request, or information requirement. Be very inclusive - include questions that don't end with '?' and implicit requests for information. Do not summarize, do not paraphrase, do not categorize, do not group similar questions. List every question separately. Always respond with valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.1,
@@ -876,20 +881,23 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         existing_summary += "\n"
     
     prompt = f"""
-    You are an expert RFP analyst helping to fill out a new RFP based on previous submissions. Use SEMANTIC MATCHING - match concepts and topics, not exact words.
+    You are an expert RFP analyst helping to fill out a new RFP based on previous submissions. Your job is to find the BEST matching answers for each question in the new RFP.
     
     {existing_summary}
     
     New RFP content:
     {new_content[:8000]}
     
-    IMPORTANT MATCHING STRATEGY:
-    1. Look for CONCEPTUAL SIMILARITIES, not exact question matches
-    2. Extract ALL specific questions from the new RFP (not just section headers)
-    3. Match topics like: company info, technical requirements, business objectives, security, compliance, etc.
-    4. Extract key themes and find similar themes in previous RFPs
-    5. Use your knowledge to suggest relevant answers even if questions are worded differently
-    6. Focus on actual questions that end with "?" or ask for specific information
+    CRITICAL INSTRUCTIONS:
+    1. FIRST: Extract ALL specific questions from the new RFP (not just section headers)
+    2. SECOND: For each question, find the BEST matching answer from previous submissions
+    3. THIRD: Provide the most relevant, accurate answer for each question
+    
+    MATCHING STRATEGY:
+    - Look for DIRECT question matches first (same or very similar wording)
+    - Then look for CONCEPTUAL matches (same topic, different wording)
+    - Match topics like: company info, technical requirements, business objectives, security, compliance, etc.
+    - Use your knowledge to suggest relevant answers even if questions are worded differently
     
     CONFIDENCE WEIGHTING RULES:
     - CORRECTED ANSWERS: 100% confidence (user improved these)
@@ -897,31 +905,32 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     - UNKNOWN/PENDING: 80% confidence (might be good, include them)
     - LOST RFPs: 60% confidence (include but weight lower - might have lost for non-RFP reasons)
     
-    MATCHING APPROACH:
-    - If new RFP asks about "company background" and old RFP has "company information" → MATCH
-    - If new RFP asks about "security measures" and old RFP has "security requirements" → MATCH
-    - If new RFP asks about "project timeline" and old RFP has "implementation schedule" → MATCH
-    - Look for similar business concepts, technical topics, compliance areas, etc.
+    ANSWER QUALITY REQUIREMENTS:
+    - Provide SPECIFIC, DETAILED answers that directly address the question
+    - Use information from the most relevant previous RFP
+    - If no good match exists, provide a general but helpful answer
+    - Make sure the answer is appropriate for the question being asked
     
-    For each section/topic in the new RFP, provide:
-    1. The topic/section identified (even if question is different)
-    2. A suggested answer based on similar content from previous submissions
+    For each question in the new RFP, provide:
+    1. The exact question from the new RFP
+    2. A suggested answer that directly addresses that question
     3. A confidence score (0-100) based on the source RFP's win status
     4. The source RFP that provided the best answer
     5. The source RFP's win status
     6. The category/theme matched
+    7. Why this answer matches the question
     
     Format your response as JSON with this structure:
     {{
         "matches": [
             {{
-                "question": "topic/section identified",
-                "suggested_answer": "answer text",
+                "question": "exact question from new RFP",
+                "suggested_answer": "specific answer that addresses the question",
                 "confidence": 85,
                 "source_rfp": "filename.pdf",
                 "category": "company_info|technical|business|security|compliance|timeline|etc",
                 "source_status": "won|lost|unknown|pending|corrected",
-                "matching_reason": "brief explanation of why this matches"
+                "matching_reason": "brief explanation of why this answer matches the question"
             }}
         ],
         "overall_confidence": 75
@@ -932,7 +941,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert RFP analyst specializing in semantic matching. Extract ALL specific questions from the new RFP (not just section headers) and match them to previous submissions. You understand that different RFPs ask similar questions in different ways. Match concepts and topics, not exact words. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide accurate, relevant answers for each question. Focus on direct question-answer pairs first, then conceptual matches. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
