@@ -455,10 +455,11 @@ def extract_excel_content(file_content: bytes, file_extension: str) -> str:
                 if df.empty:
                     continue
                 
-                # Add sheet header
-                if len(sheet_names) > 1:
-                    text_content += f"\n=== SHEET: {sheet_name} ===\n"
-                    text_content += f"Sheet dimensions: {df.shape[0]} rows x {df.shape[1]} columns\n\n"
+            # Add sheet header
+            if len(sheet_names) > 1:
+                text_content += f"\n=== SHEET: {sheet_name} ===\n"
+                text_content += f"Sheet dimensions: {df.shape[0]} rows x {df.shape[1]} columns\n"
+                text_content += f"Sheet content preview: {str(df.head(3).to_dict())}\n\n"
                 
                 # Check if this looks like a Q&A format (questions in one column, answers in next)
                 if len(df.columns) >= 2:
@@ -498,6 +499,13 @@ def extract_excel_content(file_content: bytes, file_extension: str) -> str:
                 # Add separator between sheets
                 if len(sheet_names) > 1:
                     text_content += "\n" + "="*50 + "\n"
+            
+            # Add final summary
+            text_content += f"\n\n=== EXCEL PROCESSING COMPLETE ===\n"
+            text_content += f"Total sheets processed: {len(sheet_names)}\n"
+            text_content += f"Total content length: {len(text_content)} characters\n"
+            text_content += f"Content preview (first 2000 chars): {text_content[:2000]}...\n"
+            text_content += f"Content preview (last 2000 chars): ...{text_content[-2000:]}\n"
             
             return text_content
             
@@ -601,7 +609,13 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     }}
     
     Document content:
-    {content[:12000]}
+    {content[:15000]}
+    
+    DEBUG INFO:
+    - Total content length: {len(content)} characters
+    - Content being processed: {len(content[:15000])} characters
+    - Content preview (first 1000 chars): {content[:1000]}
+    - Content preview (last 1000 chars): {content[-1000:]}
     """
     
     try:
