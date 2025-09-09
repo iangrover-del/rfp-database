@@ -571,13 +571,25 @@ def extract_csv_content(file_content: bytes) -> str:
 def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     """Extract structured data from RFP using AI"""
     
-    # Split content into chunks to ensure we don't miss anything
-    chunk_size = 8000
-    chunks = [content[i:i+chunk_size] for i in range(0, len(content), chunk_size)]
+    # Split content into chunks with overlap to ensure we don't miss anything
+    chunk_size = 12000
+    overlap = 2000
+    chunks = []
+    for i in range(0, len(content), chunk_size - overlap):
+        chunk = content[i:i+chunk_size]
+        chunks.append(chunk)
+        if i + chunk_size >= len(content):
+            break
     
     all_questions = []
     sheets_analyzed = set()
     pages_analyzed = set()
+    
+    # Debug info
+    print(f"DEBUG: Total content length: {len(content)} characters")
+    print(f"DEBUG: Split into {len(chunks)} chunks")
+    for i, chunk in enumerate(chunks):
+        print(f"DEBUG: Chunk {i+1}: {len(chunk)} characters")
     
     for i, chunk in enumerate(chunks):
         prompt = f"""
@@ -677,7 +689,9 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
                 
                 # Extract questions from this chunk
                 if "all_questions_found" in chunk_data:
-                    all_questions.extend(chunk_data["all_questions_found"])
+                    chunk_questions = chunk_data["all_questions_found"]
+                    print(f"DEBUG: Chunk {i+1} found {len(chunk_questions)} questions")
+                    all_questions.extend(chunk_questions)
                 
                 # Track sheets and pages analyzed
                 if "sheets_analyzed" in chunk_data:
