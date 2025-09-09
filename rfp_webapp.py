@@ -1025,11 +1025,18 @@ def show_upload_page(client):
     
     uploaded_file = st.file_uploader(
         "Choose an RFP file",
-        type=file_types,
-        help=help_text
+        type=None,  # Allow all file types, we'll validate manually
+        help=help_text,
+        accept_multiple_files=False
     )
     
     if uploaded_file is not None:
+        # Validate file type
+        file_extension = uploaded_file.name.lower().split('.')[-1]
+        if file_extension not in file_types:
+            st.error(f"❌ Unsupported file type: {file_extension}. Please use one of: {', '.join(file_types)}")
+            return
+        
         st.info(f"Selected file: {uploaded_file.name}")
         
         # Win/Loss tracking
@@ -1132,11 +1139,17 @@ def show_process_page(client):
     
     uploaded_file = st.file_uploader(
         "Choose a new RFP file",
-        type=file_types,
+        type=None,  # Allow all file types, we'll validate manually
         help=help_text
     )
     
     if uploaded_file is not None:
+        # Validate file type
+        file_extension = uploaded_file.name.lower().split('.')[-1]
+        if file_extension not in file_types:
+            st.error(f"❌ Unsupported file type: {file_extension}. Please use one of: {', '.join(file_types)}")
+            return
+        
         st.info(f"Selected file: {uploaded_file.name}")
         
         if st.button("Process RFP", type="primary"):
@@ -1240,11 +1253,17 @@ def show_corrected_upload_page(client):
     
     uploaded_file = st.file_uploader(
         "Choose your corrected RFP file",
-        type=file_types,
+        type=None,  # Allow all file types, we'll validate manually
         help=help_text
     )
     
     if uploaded_file is not None:
+        # Validate file type
+        file_extension = uploaded_file.name.lower().split('.')[-1]
+        if file_extension not in file_types:
+            st.error(f"❌ Unsupported file type: {file_extension}. Please use one of: {', '.join(file_types)}")
+            return
+        
         st.info(f"Selected file: {uploaded_file.name}")
         
         st.subheader("Step 3: Review Corrections")
