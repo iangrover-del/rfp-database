@@ -405,7 +405,8 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
             text += f"\n\n=== DEBUG INFO ===\n"
             text += f"Total pages: {len(pdf_reader.pages)}\n"
             text += f"Total characters extracted: {len(text)}\n"
-            text += f"Content preview (first 500 chars): {text[:500]}...\n"
+            text += f"Content preview (first 1000 chars): {text[:1000]}...\n"
+            text += f"Content preview (last 1000 chars): ...{text[-1000:]}\n"
             
             return text
         elif file_extension == 'docx':
@@ -563,52 +564,41 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     """Extract structured data from RFP using AI"""
     
     prompt = f"""
-    You are analyzing an RFP document. Your primary task is to find EVERY SINGLE QUESTION that needs to be answered.
+    TASK: Extract EVERY SINGLE QUESTION from this RFP document.
     
-    CRITICAL INSTRUCTIONS:
-    1. Read through the ENTIRE document carefully
-    2. Find ALL questions that end with "?" 
-    3. Find ALL questions that start with "What", "How", "When", "Where", "Why", "Who", "Which", "Describe", "Explain", "Provide", "List"
-    4. Look for numbered questions, bulleted questions, and questions in tables
-    5. Pay special attention to pages 6-7 and any questionnaire sections
-    6. Extract the EXACT wording of each question
+    STEP-BY-STEP PROCESS:
+    1. Go through the document page by page
+    2. Look for ANY text that asks for information
+    3. Find questions that end with "?"
+    4. Find questions that start with "What", "How", "When", "Where", "Why", "Who", "Which", "Describe", "Explain", "Provide", "List", "Please", "Can you"
+    5. Look for numbered items that ask for information
+    6. Look for bullet points that ask for information
+    7. Look for table headers that ask for information
+    8. Look for any text that requests specific details
     
-    FORMAT YOUR RESPONSE AS JSON WITH THESE SECTIONS:
+    EXAMPLES OF WHAT TO EXTRACT:
+    - "What is your company's annual revenue?"
+    - "How many employees do you serve?"
+    - "Describe your technology platform"
+    - "Please provide your company background"
+    - "List your key capabilities"
+    - "Can you provide references?"
+    - "1. Company Information:"
+    - "• Experience with financial services:"
+    - "Vendor Qualifications:"
     
+    CRITICAL: Extract the EXACT wording. Do NOT summarize or paraphrase.
+    
+    RESPONSE FORMAT (JSON only):
     {{
-        "company_info": {{
-            "company_name": "extracted company name",
-            "industry": "extracted industry",
-            "location": "extracted location"
-        }},
-        "project_details": {{
-            "project_name": "extracted project name",
-            "description": "extracted description",
-            "timeline": "extracted timeline"
-        }},
         "all_questions_found": [
-            "Question 1 with exact wording?",
-            "Question 2 with exact wording?",
-            "Question 3 with exact wording?"
+            "Exact question 1 as written in document?",
+            "Exact question 2 as written in document?",
+            "Exact question 3 as written in document?"
         ],
-        "question_categories": {{
-            "company_questions": ["list of company-related questions"],
-            "technical_questions": ["list of technical questions"],
-            "business_questions": ["list of business questions"],
-            "compliance_questions": ["list of compliance questions"]
-        }},
-        "response_requirements": {{
-            "deadline": "extracted deadline",
-            "format": "extracted format requirements"
-        }}
+        "question_count": "total number of questions found",
+        "pages_analyzed": "list of page numbers where questions were found"
     }}
-    
-    IMPORTANT: 
-    - The "all_questions_found" array should contain EVERY question from the document
-    - Use the exact wording of each question
-    - Don't summarize or paraphrase questions
-    - If you find 50 questions, list all 50
-    - Focus on finding questions, not just section headers
     
     Document content:
     {content[:12000]}
@@ -618,7 +608,7 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are a question extraction specialist. Your ONLY job is to find EVERY SINGLE QUESTION in the RFP document. Read through the entire document and extract the exact wording of every question that ends with '?' or asks for specific information. Always respond with valid JSON."},
+                {"role": "system", "content": "You are a question extraction robot. Your ONLY task is to find and extract EVERY SINGLE QUESTION from the RFP document. Go through the document word by word and extract the exact wording of every question, request, or information requirement. Do not summarize, do not paraphrase, do not categorize. Just extract the exact text. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
