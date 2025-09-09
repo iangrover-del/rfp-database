@@ -395,8 +395,11 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
         if file_extension == 'pdf':
             pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
             text = ""
-            for page in pdf_reader.pages:
-                text += page.extract_text() + "\n"
+            for page_num, page in enumerate(pdf_reader.pages):
+                page_text = page.extract_text()
+                if page_text.strip():  # Only add non-empty pages
+                    text += f"\n--- PAGE {page_num + 1} ---\n"
+                    text += page_text + "\n"
             return text
         elif file_extension == 'docx':
             doc = Document(io.BytesIO(file_content))
@@ -553,15 +556,24 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     """Extract structured data from RFP using AI"""
     
     prompt = f"""
-    Analyze this RFP document and extract key information in a structured format.
+    Analyze this RFP document and extract ALL questions and detailed information. Focus on extracting the actual questions that need to be answered, not just section headers.
     
-    Please extract the following information if available:
+    IMPORTANT: Look for specific questions throughout the document, including:
+    - Questions that end with "?"
+    - Questions that start with "What", "How", "When", "Where", "Why", "Who", "Which"
+    - Questions that ask for specific information, capabilities, or requirements
+    - Questions in questionnaire format or numbered lists
+    - Questions that ask for company details, technical specifications, or business requirements
+    
+    Extract the following information:
     
     1. Company Information:
        - Company name
        - Industry/sector
        - Company size
        - Location
+       - Website
+       - Contact information
     
     2. Project Details:
        - Project name/title
@@ -569,37 +581,49 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
        - Timeline/deadlines
        - Budget range
        - Key requirements
+       - Scope of work
     
     3. Technical Requirements:
        - Technology stack preferences
        - Integration requirements
        - Security requirements
        - Performance requirements
+       - Compliance requirements
+       - Infrastructure needs
     
     4. Business Requirements:
        - Business objectives
        - Success criteria
        - Stakeholders
        - Decision makers
+       - Expected outcomes
     
-    5. Questions and Responses:
-       - Extract any questions asked in the RFP
-       - Note any specific response requirements
-       - Identify mandatory vs optional sections
+    5. ALL QUESTIONS FOUND:
+       - Extract EVERY question from the document
+       - Include the exact wording of each question
+       - Note if questions are mandatory or optional
+       - Include any specific response requirements
+       - Capture questions from all sections, not just headers
+    
+    6. Response Requirements:
+       - Submission deadlines
+       - Format requirements
+       - Required attachments
+       - Evaluation criteria
     
     Please format your response as a JSON object with the above categories.
-    If information is not available, use null for that field.
-    Be as specific and detailed as possible.
+    For the "ALL QUESTIONS FOUND" section, create an array of all questions discovered.
+    Be extremely thorough and extract every question, not just section titles.
     
     Document content:
-    {content[:12000]}  # Increased limit to capture more content from multi-tab Excel files
+    {content[:12000]}
     """
     
     try:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert at analyzing RFP documents and extracting structured information. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert at analyzing RFP documents and extracting ALL questions and detailed information. Focus on finding every specific question that needs to be answered, not just section headers. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
@@ -755,13 +779,15 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     {existing_summary}
     
     New RFP content:
-    {new_content[:4000]}
+    {new_content[:8000]}
     
     IMPORTANT MATCHING STRATEGY:
     1. Look for CONCEPTUAL SIMILARITIES, not exact question matches
-    2. Match topics like: company info, technical requirements, business objectives, security, compliance, etc.
-    3. Extract key themes and find similar themes in previous RFPs
-    4. Use your knowledge to suggest relevant answers even if questions are worded differently
+    2. Extract ALL specific questions from the new RFP (not just section headers)
+    3. Match topics like: company info, technical requirements, business objectives, security, compliance, etc.
+    4. Extract key themes and find similar themes in previous RFPs
+    5. Use your knowledge to suggest relevant answers even if questions are worded differently
+    6. Focus on actual questions that end with "?" or ask for specific information
     
     CONFIDENCE WEIGHTING RULES:
     - CORRECTED ANSWERS: 100% confidence (user improved these)
@@ -804,7 +830,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert RFP analyst specializing in semantic matching. You understand that different RFPs ask similar questions in different ways. Match concepts and topics, not exact words. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert RFP analyst specializing in semantic matching. Extract ALL specific questions from the new RFP (not just section headers) and match them to previous submissions. You understand that different RFPs ask similar questions in different ways. Match concepts and topics, not exact words. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
