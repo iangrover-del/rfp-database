@@ -886,7 +886,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         existing_summary += "\n"
     
     # Add a critical note about content requirements
-    existing_summary += "🚨 CRITICAL INSTRUCTION: Only use ACTUAL content from the above submissions. Do NOT create placeholder text like '[specific details]' or '[explained]'. Do NOT generate generic responses like 'We have detailed...' or 'Our processes include...'. If no relevant content exists, say 'No specific answer found in previous submissions'.\n\n"
+    existing_summary += "🚨 CRITICAL INSTRUCTION: Only use ACTUAL content from the above submissions. Do NOT create placeholder text like '[specific details]' or '[explained]'. Do NOT generate generic responses like 'We have detailed...', 'Our processes include...', 'We can provide...', 'We offer...', 'We provide...'. NEVER generate responses - only use exact text from the source documents. If no relevant content exists, say 'No specific answer found in previous submissions'.\n\n"
     
     prompt = f"""
     You are an expert RFP analyst helping to fill out a new RFP based on previous submissions. Your job is to find the BEST matching answers for each question in the new RFP.
@@ -915,10 +915,12 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     
     ANSWER QUALITY REQUIREMENTS:
     - ONLY use ACTUAL content from previous RFP submissions - NO placeholder text like "[specific details]" or "[explained]"
-    - Provide SPECIFIC, DETAILED answers that directly address the question using real information
+    - NEVER generate responses like "We can provide...", "We have...", "Our processes include...", "We offer...", "We provide..."
+    - NEVER create generic responses - only use exact text from the source RFPs
     - If no good match exists, say "No specific answer found in previous submissions" instead of making up content
     - NEVER use generic placeholders - only use actual text from the source RFPs
     - Make sure the answer is appropriate for the question being asked
+    - If you cannot find specific content, do NOT generate a response - say "No specific answer found"
     
     For each question in the new RFP, provide:
     1. The exact question from the new RFP
@@ -950,10 +952,10 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide accurate, relevant answers using ONLY actual content from previous RFPs. NEVER use placeholder text like '[specific details]' or '[explained]'. NEVER generate generic responses like 'We have detailed...' or 'Our processes include...'. Only use real, specific content from the source documents. If no good match exists, say 'No specific answer found in previous submissions'. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide accurate, relevant answers using ONLY actual content from previous RFPs. NEVER use placeholder text like '[specific details]' or '[explained]'. NEVER generate generic responses like 'We have detailed...', 'Our processes include...', 'We can provide...', 'We offer...', 'We provide...'. NEVER generate responses - only use exact text from the source documents. If no good match exists, say 'No specific answer found in previous submissions'. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.1,
+            temperature=0.0,  # More deterministic to prevent generic responses
             max_tokens=3000
         )
         
@@ -966,7 +968,33 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         
         # Try to parse JSON
         try:
-            return json.loads(response_content)
+            result = json.loads(response_content)
+            
+            # Post-process to filter out generic responses
+            if "matches" in result:
+                filtered_matches = []
+                for match in result["matches"]:
+                    suggested_answer = match.get("suggested_answer", "")
+                    
+                    # Check for generic response patterns
+                    generic_patterns = [
+                        "we can provide", "we have", "our processes include", 
+                        "we offer", "we provide", "we are able to", "we will provide",
+                        "our company", "our organization", "we ensure", "we guarantee"
+                    ]
+                    
+                    is_generic = any(pattern in suggested_answer.lower() for pattern in generic_patterns)
+                    
+                    if is_generic:
+                        match["suggested_answer"] = "No specific answer found in previous submissions"
+                        match["confidence"] = 0
+                        match["matching_reason"] = "Generic response detected - no real content found"
+                    
+                    filtered_matches.append(match)
+                
+                result["matches"] = filtered_matches
+            
+            return result
         except json.JSONDecodeError as json_error:
             # Try to extract JSON from markdown code blocks
             try:
