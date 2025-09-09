@@ -731,7 +731,12 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         "all_questions_found": all_questions,
         "question_count": len(all_questions),
         "sheets_analyzed": list(sheets_analyzed) if sheets_analyzed else [],
-        "pages_analyzed": list(pages_analyzed) if pages_analyzed else []
+        "pages_analyzed": list(pages_analyzed) if pages_analyzed else [],
+        "debug_info": {
+            "total_chunks": len(chunks),
+            "chunk_sizes": [len(chunk) for chunk in chunks],
+            "total_content_length": len(content)
+        }
     }
     
     return final_result
@@ -1231,6 +1236,21 @@ def show_upload_page(client):
                 st.text_area("Content preview (first 2000 chars):", content[:2000], height=200)
                 st.text_area("Content preview (last 2000 chars):", content[-2000:], height=200)
                 
+                # Show chunking info
+                chunk_size = 12000
+                overlap = 2000
+                chunks = []
+                for i in range(0, len(content), chunk_size - overlap):
+                    chunk = content[i:i+chunk_size]
+                    chunks.append(chunk)
+                    if i + chunk_size >= len(content):
+                        break
+                
+                st.write(f"**Chunking Info:**")
+                st.write(f"- Split into {len(chunks)} chunks")
+                for i, chunk in enumerate(chunks):
+                    st.write(f"- Chunk {i+1}: {len(chunk)} characters")
+                
                 # Extract data with AI
                 extracted_data = extract_rfp_data_with_ai(content, client)
                 
@@ -1268,6 +1288,17 @@ def show_upload_page(client):
                 
                 # Show extracted data
                 st.subheader("Extracted Information")
+                
+                # Show debug info if available
+                if isinstance(extracted_data, dict) and "debug_info" in extracted_data:
+                    debug_info = extracted_data["debug_info"]
+                    st.write("**🔍 Processing Debug Info:**")
+                    st.write(f"- Total chunks processed: {debug_info['total_chunks']}")
+                    st.write(f"- Chunk sizes: {debug_info['chunk_sizes']}")
+                    st.write(f"- Total questions found: {extracted_data.get('question_count', 0)}")
+                    st.write(f"- Sheets analyzed: {extracted_data.get('sheets_analyzed', [])}")
+                    st.write(f"- Pages analyzed: {extracted_data.get('pages_analyzed', [])}")
+                
                 st.json(extracted_data)
 
 def show_process_page(client):
