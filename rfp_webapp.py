@@ -880,6 +880,9 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
             existing_summary += "\n---\n"
         existing_summary += "\n"
     
+    # Add a critical note about content requirements
+    existing_summary += "🚨 CRITICAL INSTRUCTION: Only use ACTUAL content from the above submissions. Do NOT create placeholder text like '[specific details]' or '[explained]'. If no relevant content exists, say 'No specific answer found in previous submissions'.\n\n"
+    
     prompt = f"""
     You are an expert RFP analyst helping to fill out a new RFP based on previous submissions. Your job is to find the BEST matching answers for each question in the new RFP.
     
@@ -906,9 +909,10 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     - LOST RFPs: 60% confidence (include but weight lower - might have lost for non-RFP reasons)
     
     ANSWER QUALITY REQUIREMENTS:
-    - Provide SPECIFIC, DETAILED answers that directly address the question
-    - Use information from the most relevant previous RFP
-    - If no good match exists, provide a general but helpful answer
+    - ONLY use ACTUAL content from previous RFP submissions - NO placeholder text like "[specific details]" or "[explained]"
+    - Provide SPECIFIC, DETAILED answers that directly address the question using real information
+    - If no good match exists, say "No specific answer found in previous submissions" instead of making up content
+    - NEVER use generic placeholders - only use actual text from the source RFPs
     - Make sure the answer is appropriate for the question being asked
     
     For each question in the new RFP, provide:
@@ -941,7 +945,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide accurate, relevant answers for each question. Focus on direct question-answer pairs first, then conceptual matches. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide accurate, relevant answers using ONLY actual content from previous RFPs. NEVER use placeholder text like '[specific details]' or '[explained]' - only use real content from the source documents. If no good match exists, say 'No specific answer found in previous submissions'. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
