@@ -434,7 +434,7 @@ def extract_excel_content(file_content: bytes, file_extension: str) -> str:
                 excel_file = pd.ExcelFile(tmp_file_path, engine='xlrd')
             
             sheet_names = excel_file.sheet_names
-            text_content = ""
+            text_content = f"EXCEL FILE PROCESSING: Found {len(sheet_names)} sheet(s): {', '.join(sheet_names)}\n\n"
             
             # Process each sheet
             for sheet_name in sheet_names:
@@ -446,7 +446,8 @@ def extract_excel_content(file_content: bytes, file_extension: str) -> str:
                 
                 # Add sheet header
                 if len(sheet_names) > 1:
-                    text_content += f"\n=== SHEET: {sheet_name} ===\n\n"
+                    text_content += f"\n=== SHEET: {sheet_name} ===\n"
+                    text_content += f"Sheet dimensions: {df.shape[0]} rows x {df.shape[1]} columns\n\n"
                 
                 # Check if this looks like a Q&A format (questions in one column, answers in next)
                 if len(df.columns) >= 2:
@@ -591,7 +592,7 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     Be as specific and detailed as possible.
     
     Document content:
-    {content[:6000]}  # Limit content to avoid token limits
+    {content[:12000]}  # Increased limit to capture more content from multi-tab Excel files
     """
     
     try:
@@ -602,7 +603,7 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
-            max_tokens=2000
+            max_tokens=4000
         )
         
         # Get the response content
