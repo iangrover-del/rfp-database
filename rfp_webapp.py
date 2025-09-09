@@ -400,6 +400,13 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
                 if page_text.strip():  # Only add non-empty pages
                     text += f"\n--- PAGE {page_num + 1} ---\n"
                     text += page_text + "\n"
+            
+            # Add debug info about content length
+            text += f"\n\n=== DEBUG INFO ===\n"
+            text += f"Total pages: {len(pdf_reader.pages)}\n"
+            text += f"Total characters extracted: {len(text)}\n"
+            text += f"Content preview (first 500 chars): {text[:500]}...\n"
+            
             return text
         elif file_extension == 'docx':
             doc = Document(io.BytesIO(file_content))
@@ -556,64 +563,52 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     """Extract structured data from RFP using AI"""
     
     prompt = f"""
-    Analyze this RFP document and extract ALL questions and detailed information. Focus on extracting the actual questions that need to be answered, not just section headers.
+    You are analyzing an RFP document. Your primary task is to find EVERY SINGLE QUESTION that needs to be answered.
     
-    IMPORTANT: Look for specific questions throughout the document, including:
-    - Questions that end with "?"
-    - Questions that start with "What", "How", "When", "Where", "Why", "Who", "Which"
-    - Questions that ask for specific information, capabilities, or requirements
-    - Questions in questionnaire format or numbered lists
-    - Questions that ask for company details, technical specifications, or business requirements
+    CRITICAL INSTRUCTIONS:
+    1. Read through the ENTIRE document carefully
+    2. Find ALL questions that end with "?" 
+    3. Find ALL questions that start with "What", "How", "When", "Where", "Why", "Who", "Which", "Describe", "Explain", "Provide", "List"
+    4. Look for numbered questions, bulleted questions, and questions in tables
+    5. Pay special attention to pages 6-7 and any questionnaire sections
+    6. Extract the EXACT wording of each question
     
-    Extract the following information:
+    FORMAT YOUR RESPONSE AS JSON WITH THESE SECTIONS:
     
-    1. Company Information:
-       - Company name
-       - Industry/sector
-       - Company size
-       - Location
-       - Website
-       - Contact information
+    {{
+        "company_info": {{
+            "company_name": "extracted company name",
+            "industry": "extracted industry",
+            "location": "extracted location"
+        }},
+        "project_details": {{
+            "project_name": "extracted project name",
+            "description": "extracted description",
+            "timeline": "extracted timeline"
+        }},
+        "all_questions_found": [
+            "Question 1 with exact wording?",
+            "Question 2 with exact wording?",
+            "Question 3 with exact wording?"
+        ],
+        "question_categories": {{
+            "company_questions": ["list of company-related questions"],
+            "technical_questions": ["list of technical questions"],
+            "business_questions": ["list of business questions"],
+            "compliance_questions": ["list of compliance questions"]
+        }},
+        "response_requirements": {{
+            "deadline": "extracted deadline",
+            "format": "extracted format requirements"
+        }}
+    }}
     
-    2. Project Details:
-       - Project name/title
-       - Project description
-       - Timeline/deadlines
-       - Budget range
-       - Key requirements
-       - Scope of work
-    
-    3. Technical Requirements:
-       - Technology stack preferences
-       - Integration requirements
-       - Security requirements
-       - Performance requirements
-       - Compliance requirements
-       - Infrastructure needs
-    
-    4. Business Requirements:
-       - Business objectives
-       - Success criteria
-       - Stakeholders
-       - Decision makers
-       - Expected outcomes
-    
-    5. ALL QUESTIONS FOUND:
-       - Extract EVERY question from the document
-       - Include the exact wording of each question
-       - Note if questions are mandatory or optional
-       - Include any specific response requirements
-       - Capture questions from all sections, not just headers
-    
-    6. Response Requirements:
-       - Submission deadlines
-       - Format requirements
-       - Required attachments
-       - Evaluation criteria
-    
-    Please format your response as a JSON object with the above categories.
-    For the "ALL QUESTIONS FOUND" section, create an array of all questions discovered.
-    Be extremely thorough and extract every question, not just section titles.
+    IMPORTANT: 
+    - The "all_questions_found" array should contain EVERY question from the document
+    - Use the exact wording of each question
+    - Don't summarize or paraphrase questions
+    - If you find 50 questions, list all 50
+    - Focus on finding questions, not just section headers
     
     Document content:
     {content[:12000]}
@@ -623,7 +618,7 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert at analyzing RFP documents and extracting ALL questions and detailed information. Focus on finding every specific question that needs to be answered, not just section headers. Always respond with valid JSON."},
+                {"role": "system", "content": "You are a question extraction specialist. Your ONLY job is to find EVERY SINGLE QUESTION in the RFP document. Read through the entire document and extract the exact wording of every question that ends with '?' or asks for specific information. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
