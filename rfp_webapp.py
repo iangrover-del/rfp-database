@@ -697,6 +697,11 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
                     "error": f"Error processing chunk {i+1}: {str(e)}",
                     "raw_response": response_content
                 }
+        
+        except Exception as e:
+            return {
+                "error": f"Failed to process chunk {i+1}: {str(e)}"
+            }
     
     # Combine all results
     final_result = {
