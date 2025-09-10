@@ -605,15 +605,9 @@ def extract_csv_content(file_content: bytes) -> str:
 def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     """Extract structured data from RFP using AI"""
     
-    # Split content into smaller chunks with more overlap to ensure we don't miss anything
-    chunk_size = 8000  # Smaller chunks for better processing
-    overlap = 3000     # More overlap to catch questions at boundaries
-    chunks = []
-    for i in range(0, len(content), chunk_size - overlap):
-        chunk = content[i:i+chunk_size]
-        chunks.append(chunk)
-        if i + chunk_size >= len(content):
-            break
+    # Use a more aggressive approach - process the entire document at once
+    # but with a much more comprehensive question extraction strategy
+    chunks = [content]  # Process the entire document as one chunk
     
     all_questions = []
     sheets_analyzed = set()
@@ -627,10 +621,10 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     
     for i, chunk in enumerate(chunks):
         prompt = f"""
-        You are an expert RFP question extraction specialist. Your task is to find and extract EVERY SINGLE QUESTION, REQUEST, or INFORMATION REQUIREMENT from this document chunk.
+        You are an expert RFP question extraction specialist. Your task is to find and extract EVERY SINGLE QUESTION, REQUEST, or INFORMATION REQUIREMENT from this RFP document.
         
         CRITICAL INSTRUCTIONS:
-        1. Read through the ENTIRE chunk carefully, word by word
+        1. Read through the ENTIRE document carefully, line by line
         2. Extract the EXACT wording of every question, request, or information requirement
         3. Include questions that end with "?" AND questions that don't end with "?"
         4. Include numbered items, bullet points, table headers, and any text that asks for information
@@ -638,6 +632,7 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         6. List EVERY question separately, even if they seem similar
         7. Include questions from tables, forms, and structured sections
         8. Look for implicit questions (text that requests information even without "?")
+        9. Be EXTREMELY thorough - extract everything that could be considered a question or request
         
         WHAT TO EXTRACT (be extremely inclusive - extract EVERYTHING that asks for information):
         - Direct questions ending with "?"
@@ -654,6 +649,15 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         - Any text that ends with a colon and asks for information
         - Any text that says "include", "provide", "submit", "attach", "complete", "fill out"
         - Any text that asks for "details", "information", "processes", "procedures", "requirements"
+        - Any text that asks for "outline", "describe", "explain", "specify", "detail", "clarify"
+        - Any text that asks for "standards", "processes", "delivery times", "fees", "costs"
+        - Any text that asks for "capabilities", "experience", "qualifications", "certifications"
+        - Any text that asks for "references", "examples", "case studies", "testimonials"
+        - Any text that asks for "timeline", "schedule", "deadlines", "milestones"
+        - Any text that asks for "team", "staff", "personnel", "resources"
+        - Any text that asks for "technology", "systems", "platforms", "tools"
+        - Any text that asks for "security", "compliance", "privacy", "data protection"
+        - Any text that asks for "support", "maintenance", "training", "documentation"
         
         EXAMPLES OF WHAT TO EXTRACT:
         - "What is your company's annual revenue?"
@@ -931,7 +935,10 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     - PREFER using ACTUAL content from previous RFP submissions when available
     - Avoid placeholder text like "[specific details]" or "[explained]" - use real content instead
     - If you find relevant content in previous submissions, use it even if it's not a perfect match
-    - If no specific content is found, provide a helpful general response based on the question type
+    - Provide DETAILED, COMPREHENSIVE answers that fully address the question
+    - Include specific examples, processes, timelines, and details when available
+    - Make answers in-depth and thorough, not just brief responses
+    - If no specific content is found, provide a detailed, helpful general response based on the question type
     - Make sure the answer is appropriate for the question being asked
     - Use the best available content from your historical RFPs
     
@@ -965,11 +972,11 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide accurate, relevant answers using actual content from previous RFPs when available. Avoid placeholder text like '[specific details]' or '[explained]'. Use the best available content from your historical RFPs, even if it's not a perfect match. If no specific content is found, provide a helpful general response based on the question type. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide detailed, comprehensive answers using actual content from previous RFPs when available. Avoid placeholder text like '[specific details]' or '[explained]'. Use the best available content from your historical RFPs, even if it's not a perfect match. Provide in-depth, thorough responses that fully address each question. If no specific content is found, provide a detailed, helpful general response based on the question type. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,  # Balanced for good responses
-            max_tokens=3000
+            max_tokens=5000  # Increased for more comprehensive responses
         )
         
         # Get the response content
