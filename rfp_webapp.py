@@ -907,6 +907,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     
     # Add a critical note about content requirements
     existing_summary += "🚨 CRITICAL INSTRUCTION: You MUST use the ACTUAL content from the submissions above. Do NOT provide generic suggestions. If there is ANY content in the submissions above that could be relevant to a question, use it. Even if it's not a perfect match, use the best available content. Only provide generic suggestions if there is absolutely NO content in the submissions above.\n\n"
+    existing_summary += "🔥 ULTIMATE RULE: If you see ANY text in the submissions above that could answer a question, use that EXACT text. Do NOT paraphrase, do NOT summarize, do NOT create placeholder text. Use the ACTUAL words from the submissions.\n\n"
     
     # Debug: Add information about what content is available
     existing_summary += f"DEBUG INFO: Total submissions available: {len(existing_submissions)}, Corrected answers: {len(corrected_answers) if corrected_answers else 0}\n"
@@ -914,19 +915,28 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     # Debug: Show actual content from submissions
     if existing_submissions:
         existing_summary += "ACTUAL CONTENT FROM SUBMISSIONS:\n"
-        for i, sub in enumerate(existing_submissions[:2]):  # Show first 2 submissions
+        for i, sub in enumerate(existing_submissions[:3]):  # Show first 3 submissions
             existing_summary += f"Submission {i+1}: {sub[1]}\n"
+            existing_summary += f"  Company: {sub[2] or 'Unknown'}\n"
+            existing_summary += f"  Win Status: {sub[5] if len(sub) > 5 else 'unknown'}\n"
+            existing_summary += f"  Raw data length: {len(str(sub[4])) if len(sub) > 4 and sub[4] else 0}\n"
+            
             if len(sub) > 4 and sub[4]:  # extracted_data or extracted_answers
                 try:
                     data = json.loads(sub[4])
                     if isinstance(data, dict):
+                        existing_summary += f"  Data keys: {list(data.keys())}\n"
                         for key, value in data.items():
                             if value and isinstance(value, (str, dict)):
-                                existing_summary += f"  {key}: {str(value)[:300]}...\n"
+                                if isinstance(value, dict):
+                                    existing_summary += f"  {key} (dict): {str(value)[:500]}...\n"
+                                else:
+                                    existing_summary += f"  {key}: {str(value)[:500]}...\n"
                     else:
-                        existing_summary += f"  Content: {str(data)[:300]}...\n"
+                        existing_summary += f"  Content: {str(data)[:500]}...\n"
                 except Exception as e:
                     existing_summary += f"  Error parsing content: {str(e)}\n"
+                    existing_summary += f"  Raw content: {str(sub[4])[:500]}...\n"
             else:
                 existing_summary += "  No content found\n"
             existing_summary += "\n"
