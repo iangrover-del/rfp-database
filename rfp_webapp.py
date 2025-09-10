@@ -799,7 +799,12 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     """Find matching answers for new RFP"""
     
     if not existing_submissions:
-        return {"matches": [], "confidence": 0}
+        return {
+            "matches": [], 
+            "confidence": 0,
+            "error": "No historical RFPs found in database. Please upload some historical RFPs first to build a knowledge base.",
+            "suggestion": "Go to 'Upload Historical RFPs' to add your past successful proposals."
+        }
     
     # Get corrected answers from database
     conn = init_database()
@@ -1452,6 +1457,19 @@ def show_process_page(client):
                 
                 # Display results
                 st.subheader("Suggested Answers")
+                
+                # Check if no historical RFPs were found
+                if matches.get("error") and "No historical RFPs found" in matches.get("error", ""):
+                    st.error(f"❌ {matches['error']}")
+                    st.info(f"💡 {matches.get('suggestion', '')}")
+                    st.markdown("""
+                    **To get started:**
+                    1. Go to "Upload Historical RFPs" 
+                    2. Upload your past successful RFP responses
+                    3. Mark them as "Won" if they were successful
+                    4. Then come back here to process new RFPs
+                    """)
+                    return
                 
                 if matches.get("matches"):
                     for i, match in enumerate(matches["matches"]):
