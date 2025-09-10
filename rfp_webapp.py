@@ -901,10 +901,34 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         existing_summary += "\n"
     
     # Add a critical note about content requirements
-    existing_summary += "🚨 CRITICAL INSTRUCTION: Use ACTUAL content from the above submissions when available. Avoid placeholder text like '[specific details]' or '[explained]'. If you find relevant content in the submissions above, use it even if it's not a perfect match. Only say 'No specific answer found in previous submissions' if there is truly no relevant content available.\n\n"
+    existing_summary += "🚨 CRITICAL INSTRUCTION: You MUST use the ACTUAL content from the submissions above. Do NOT provide generic suggestions. If there is ANY content in the submissions above that could be relevant to a question, use it. Even if it's not a perfect match, use the best available content. Only provide generic suggestions if there is absolutely NO content in the submissions above.\n\n"
     
     # Debug: Add information about what content is available
-    existing_summary += f"DEBUG INFO: Total submissions available: {len(existing_submissions)}, Corrected answers: {len(corrected_answers) if corrected_answers else 0}\n\n"
+    existing_summary += f"DEBUG INFO: Total submissions available: {len(existing_submissions)}, Corrected answers: {len(corrected_answers) if corrected_answers else 0}\n"
+    
+    # Debug: Show actual content from submissions
+    if existing_submissions:
+        existing_summary += "ACTUAL CONTENT FROM SUBMISSIONS:\n"
+        for i, sub in enumerate(existing_submissions[:2]):  # Show first 2 submissions
+            existing_summary += f"Submission {i+1}: {sub[1]}\n"
+            if len(sub) > 4 and sub[4]:  # extracted_data or extracted_answers
+                try:
+                    data = json.loads(sub[4])
+                    if isinstance(data, dict):
+                        for key, value in data.items():
+                            if value and isinstance(value, (str, dict)):
+                                existing_summary += f"  {key}: {str(value)[:300]}...\n"
+                    else:
+                        existing_summary += f"  Content: {str(data)[:300]}...\n"
+                except Exception as e:
+                    existing_summary += f"  Error parsing content: {str(e)}\n"
+            else:
+                existing_summary += "  No content found\n"
+            existing_summary += "\n"
+    else:
+        existing_summary += "NO SUBMISSIONS FOUND IN DATABASE!\n"
+    
+    existing_summary += "\n"
     
     prompt = f"""
     You are an expert RFP analyst helping to fill out a new RFP based on previous submissions. Your job is to find the BEST matching answers for each question in the new RFP.
@@ -972,7 +996,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide detailed, comprehensive answers using actual content from previous RFPs when available. Avoid placeholder text like '[specific details]' or '[explained]'. Use the best available content from your historical RFPs, even if it's not a perfect match. Provide in-depth, thorough responses that fully address each question. If no specific content is found, provide a detailed, helpful general response based on the question type. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide detailed, comprehensive answers using actual content from previous RFPs. You MUST use the content provided in the submissions above. Do NOT provide generic suggestions unless there is absolutely NO content available. Use ANY relevant content from the submissions, even if it's not a perfect match. Avoid placeholder text like '[specific details]' or '[explained]'. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,  # Balanced for good responses
