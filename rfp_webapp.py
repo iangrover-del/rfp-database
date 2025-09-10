@@ -1482,6 +1482,21 @@ def show_process_page(client):
                     """)
                     return
                 
+                # Debug: Show what we found
+                st.subheader("🔍 Debug Information")
+                st.write(f"**Total submissions found:** {len(existing_submissions)}")
+                if existing_submissions:
+                    st.write("**Your uploaded RFPs:**")
+                    for i, sub in enumerate(existing_submissions):
+                        st.write(f"{i+1}. {sub[1]} - {sub[2] or 'Unknown Company'} (Status: {sub[5] if len(sub) > 5 else 'unknown'})")
+                else:
+                    st.error("❌ No RFPs found in database!")
+                
+                # Show the raw matches for debugging
+                if matches:
+                    st.subheader("🔍 Raw AI Response (Debug)")
+                    st.json(matches)
+                
                 if matches.get("matches"):
                     for i, match in enumerate(matches["matches"]):
                         with st.expander(f"Question {i+1}: {match.get('question', 'N/A')[:100]}..."):
