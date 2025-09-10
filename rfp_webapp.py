@@ -1016,7 +1016,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,  # Balanced for good responses
-            max_tokens=5000  # Increased for more comprehensive responses
+            max_tokens=4000  # Fixed: gpt-3.5-turbo supports max 4096 tokens
         )
         
         # Get the response content
