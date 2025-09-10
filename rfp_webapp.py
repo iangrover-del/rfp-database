@@ -1497,6 +1497,20 @@ def show_process_page(client):
                     st.subheader("🔍 Raw AI Response (Debug)")
                     st.json(matches)
                 
+                # Show actual content from RFPs for debugging
+                if existing_submissions:
+                    st.subheader("🔍 Content from Your RFPs (Debug)")
+                    for i, sub in enumerate(existing_submissions[:2]):  # Show first 2
+                        with st.expander(f"Content from: {sub[1]}"):
+                            if len(sub) > 4 and sub[4]:
+                                try:
+                                    data = json.loads(sub[4])
+                                    st.json(data)
+                                except:
+                                    st.write("Raw content:", sub[4][:1000] + "...")
+                            else:
+                                st.write("No content found")
+                
                 if matches.get("matches"):
                     for i, match in enumerate(matches["matches"]):
                         with st.expander(f"Question {i+1}: {match.get('question', 'N/A')[:100]}..."):
