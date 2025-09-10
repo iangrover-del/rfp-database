@@ -961,15 +961,16 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     - LOST RFPs: 60% confidence (include but weight lower - might have lost for non-RFP reasons)
     
     ANSWER QUALITY REQUIREMENTS:
-    - PREFER using ACTUAL content from previous RFP submissions when available
-    - Avoid placeholder text like "[specific details]" or "[explained]" - use real content instead
-    - If you find relevant content in previous submissions, use it even if it's not a perfect match
-    - Provide DETAILED, COMPREHENSIVE answers that fully address the question
-    - Include specific examples, processes, timelines, and details when available
-    - Make answers in-depth and thorough, not just brief responses
-    - If no specific content is found, provide a detailed, helpful general response based on the question type
-    - Make sure the answer is appropriate for the question being asked
-    - Use the best available content from your historical RFPs
+    - MANDATORY: Use ONLY ACTUAL content from previous RFP submissions - NO placeholder text allowed
+    - FORBIDDEN: Never use "[specific details]", "[explained]", "[details]", or any placeholder text
+    - REQUIRED: Extract and use the EXACT text from previous submissions, even if it's not a perfect match
+    - If you find ANY relevant content in previous submissions, use it verbatim
+    - Provide DETAILED, COMPREHENSIVE answers using the actual content from your historical RFPs
+    - Include specific examples, processes, timelines, and details from the actual submissions
+    - Make answers in-depth and thorough using real content, not generic responses
+    - If no specific content is found, say "No specific answer found in previous submissions"
+    - NEVER generate placeholder text or generic suggestions
+    - ALWAYS use the best available content from your historical RFPs
     
     For each question in the new RFP, provide:
     1. The exact question from the new RFP
@@ -1001,7 +1002,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide detailed, comprehensive answers using actual content from previous RFPs. You MUST use the content provided in the submissions above. Do NOT provide generic suggestions unless there is absolutely NO content available. Use ANY relevant content from the submissions, even if it's not a perfect match. Avoid placeholder text like '[specific details]' or '[explained]'. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide detailed, comprehensive answers using ONLY actual content from previous RFPs. CRITICAL: You MUST use the EXACT content from the submissions above. NEVER use placeholder text like '[specific details]', '[explained]', or '[details]'. If you find ANY relevant content in the submissions, use it verbatim. If no content is found, say 'No specific answer found in previous submissions'. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,  # Balanced for good responses
