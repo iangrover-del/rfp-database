@@ -641,6 +641,12 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         7. Include questions from tables, forms, and structured sections
         8. Look for implicit questions (text that requests information even without "?")
         9. Be EXTREMELY thorough - extract everything that could be considered a question or request
+        10. Look for questions in ALL formats: paragraphs, lists, tables, forms, checkboxes
+        11. Extract questions that are embedded in longer text
+        12. Look for questions that start with action words like "Describe", "Explain", "Provide", "List", "Detail"
+        13. Include questions that are part of larger statements
+        14. Look for questions in section headers and subheaders
+        15. Extract questions from any text that asks for specific information, details, or responses
         
         WHAT TO EXTRACT (be extremely inclusive - extract EVERYTHING that asks for information):
         - Direct questions ending with "?"
@@ -685,6 +691,16 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         - "Response Field: Implementation timeline"
         - "Please provide evidence of..." (even without "?")
         - "Include details about..." (even without "?")
+        - "Detail the experience for someone who meets the visit limit"
+        - "What happens after they exhaust their employer sponsored sessions?"
+        - "Please outline your eligibility file requirements"
+        - "Please include as an attachment your standard eligibility file data request"
+        - "Please provide your definition of dependents"
+        - "Please clearly note who is eligible for the EAP services"
+        - "Please provide any standard leave of absence (LOA) process flows"
+        - "Please provide any standards/process/delivery time for Fitness-for-duty"
+        - "Please ensure that any fees are included in the financial template"
+        - "Can you provide a sample log-in for Barclays to demo your capabilities?"
         
         RESPONSE FORMAT (JSON only):
         {{
