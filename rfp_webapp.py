@@ -965,15 +965,18 @@ def find_matching_answers_with_questions(questions: List[str], existing_submissi
         questions_text += f"{i+1}. {question}\n"
     
     # Create a much simpler prompt
-    prompt = f"""Find answers from the submissions below for these questions:
+    prompt = f"""You have NEW RFP questions that need answers. Use the OLD RFP submissions below to find answers.
 
+NEW QUESTIONS TO ANSWER:
 {questions_text}
 
-SUBMISSIONS:
+OLD RFP SUBMISSIONS (use these to find answers):
 {existing_summary}
 
-Return JSON with answers for each question:
-{{"matches": [{{"question": "question text", "suggested_answer": "answer from submissions", "confidence": 90, "source_rfp": "filename.pdf", "category": "type", "source_status": "won", "matching_reason": "match reason"}}], "overall_confidence": 85}}"""
+IMPORTANT: Answer the NEW questions above using answers from the OLD submissions. Do not extract questions from the old submissions.
+
+Return JSON with one answer for each NEW question:
+{{"matches": [{{"question": "NEW question from above", "suggested_answer": "answer from OLD submissions", "confidence": 90, "source_rfp": "filename.pdf", "category": "type", "source_status": "won", "matching_reason": "match reason"}}], "overall_confidence": 85}}"""
     
     try:
         # Debug: Print what we're sending to AI
@@ -986,7 +989,7 @@ Return JSON with answers for each question:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are an RFP analyst. Find answers from the submissions for each question. Return valid JSON only."},
+                {"role": "system", "content": "You are an RFP analyst. You have NEW questions that need answers. Use the OLD RFP submissions to find matching answers. Answer the NEW questions using answers from the OLD submissions. Return valid JSON only."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
