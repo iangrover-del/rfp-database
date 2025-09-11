@@ -1018,7 +1018,7 @@ def find_matching_answers_with_questions(questions: List[str], existing_submissi
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
-            max_tokens=6000
+            max_tokens=4096
         )
         
         # Get the response content
