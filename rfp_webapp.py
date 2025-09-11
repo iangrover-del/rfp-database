@@ -911,6 +911,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 continue
     
     print(f"DEBUG: Found {len(all_qa_pairs)} question-answer pairs from historical RFPs")
+    print(f"DEBUG: This message should appear in the console/logs")
     if all_qa_pairs:
         print(f"DEBUG: First Q&A pair: Q: {all_qa_pairs[0]['question'][:100]}... A: {all_qa_pairs[0]['answer'][:100]}...")
     else:
@@ -1002,7 +1003,12 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         "matches": matches,
         "overall_confidence": sum(m['confidence'] for m in matches) // len(matches) if matches else 0,
         "total_questions_found": len(questions),
-        "questions_answered": len(matches)
+        "questions_answered": len(matches),
+        "debug_info": {
+            "qa_pairs_found": len(all_qa_pairs),
+            "submissions_processed": len(existing_submissions),
+            "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
+        }
     }
 
 def find_matching_answers_with_questions(questions: List[str], existing_submissions: List, client) -> Dict[str, Any]:
@@ -1872,6 +1878,16 @@ def show_process_page(client):
                 
                 # Find matching answers using simple keyword matching
                 matches = find_matching_answers_simple(questions, existing_submissions)
+                
+                # Show debug info from simple matching
+                if "debug_info" in matches:
+                    st.write("🔍 **Debug: Simple Matching Results**")
+                    st.write(f"Q&A pairs found: {matches['debug_info']['qa_pairs_found']}")
+                    st.write(f"Submissions processed: {matches['debug_info']['submissions_processed']}")
+                    if matches['debug_info']['first_qa_pair']:
+                        st.write(f"First Q&A pair: {matches['debug_info']['first_qa_pair']['question'][:100]}...")
+                    else:
+                        st.write("No Q&A pairs found in any submission")
                 
                 st.success("✅ RFP processed successfully!")
                 
