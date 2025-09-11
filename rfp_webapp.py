@@ -917,9 +917,9 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
                         existing_summary += "NOTE: This appears to be question-only data. We need the actual RFP responses/answers.\n"
                     else:
                         # This might have actual content
-                        for category, info in data.items():
-                            if info and isinstance(info, (str, dict)):
-                                existing_summary += f"{category}: {str(info)[:200]}...\n"
+                    for category, info in data.items():
+                        if info and isinstance(info, (str, dict)):
+                            existing_summary += f"{category}: {str(info)[:200]}...\n"
                 except:
                     pass
             existing_summary += "\n---\n"
@@ -1014,32 +1014,29 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     print(f"DEBUG: Existing summary preview: {existing_summary[:500]}...")
     
     prompt = f"""
-    You are an expert RFP analyst. Your job is simple: find answers from the previous submissions below to answer questions in the new RFP.
+    You are an expert RFP analyst. Your job is to find answers from the previous submissions below to answer questions in the NEW RFP.
 
-    PREVIOUS SUBMISSIONS WITH ANSWERS:
+    PREVIOUS SUBMISSIONS WITH ANSWERS (use these to find answers):
     {existing_summary}
 
-    NEW RFP QUESTIONS TO ANSWER:
+    NEW RFP CONTENT (extract questions from this and find answers from above):
     {new_content[:6000]}
 
-    SIMPLE INSTRUCTIONS:
-    1. Look at each question in the new RFP
-    2. Find the best matching answer from the previous submissions above
-    3. Use the EXACT answer text from the previous submissions
-    4. If you find a relevant answer, use it - don't be picky about perfect matches
+    CRITICAL INSTRUCTIONS:
+    1. FIRST: Extract questions from the NEW RFP content above (not from the previous submissions)
+    2. SECOND: For each question from the NEW RFP, find the best matching answer from the previous submissions
+    3. THIRD: Use the EXACT answer text from the previous submissions
 
-    EXAMPLES OF GOOD MATCHES:
-    - New question: "What is your company name?" → Use any company name answer from previous submissions
-    - New question: "Describe your technology" → Use any technology description from previous submissions  
-    - New question: "What are your capabilities?" → Use any capabilities answer from previous submissions
-
-    IMPORTANT: Use the actual answers from the submissions above. Don't say "No specific answer found" if there is ANY relevant content.
+    IMPORTANT: 
+    - Extract questions from the NEW RFP content, not from the previous submissions
+    - Use answers from the previous submissions to answer the NEW RFP questions
+    - Don't say "No specific answer found" if there is ANY relevant content in the previous submissions
 
     Return JSON format:
     {{
         "matches": [
             {{
-                "question": "question from new RFP",
+                "question": "question from NEW RFP",
                 "suggested_answer": "actual answer from previous submissions",
                 "confidence": 90,
                 "source_rfp": "filename.pdf",
