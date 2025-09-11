@@ -974,27 +974,35 @@ def find_matching_answers_with_questions(questions: List[str], existing_submissi
     {questions_text}
 
     CRITICAL INSTRUCTIONS:
-    1. For each question above, find the best matching answer from the previous submissions
-    2. Use the EXACT answer text from the previous submissions
-    3. Be FLEXIBLE with matching - if the topic is even remotely related, use the answer
-    4. NEVER say "No specific answer found" - always find the most relevant answer from the submissions
+    1. You MUST answer ALL {len(questions)} questions above - no exceptions
+    2. For each question, find the MOST SPECIFIC answer from the previous submissions
+    3. Look for exact matches first, then similar topics
+    4. Use the EXACT answer text from the previous submissions - don't generalize
+    5. If a question asks for specific details (like "complete the table" or "provide timeline"), find the most relevant specific answer
+    6. NEVER use generic company descriptions unless the question specifically asks for company overview
+    7. For network/provider questions, find actual network data
+    8. For implementation questions, find actual timelines and plans
+    9. For eligibility questions, find actual eligibility requirements
 
-    Return JSON format:
+    Return JSON format with EXACTLY {len(questions)} matches (one for each question):
     {{
         "matches": [
             {{
-                "question": "question from the list above",
-                "suggested_answer": "actual answer from previous submissions",
+                "question": "exact question from the list above",
+                "suggested_answer": "specific, detailed answer from previous submissions",
                 "confidence": 90,
                 "source_rfp": "filename.pdf",
-                "category": "company_info",
+                "category": "specific_category",
                 "source_status": "won",
-                "matching_reason": "similar topic"
+                "matching_reason": "exact match or similar topic"
             }}
         ],
         "overall_confidence": 85,
-        "total_questions_found": {len(questions)}
+        "total_questions_found": {len(questions)},
+        "questions_answered": {len(questions)}
     }}
+    
+    IMPORTANT: You must provide exactly {len(questions)} matches - one for each question above. Do not skip any questions.
     """
     
     try:
@@ -1006,11 +1014,11 @@ def find_matching_answers_with_questions(questions: List[str], existing_submissi
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are an expert RFP analyst. Your job is simple: find answers from previous submissions to answer the questions provided. Use the exact answers from the previous submissions. Don't be picky about perfect matches - if the topic is similar, use the answer. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert RFP analyst. Your job is to find SPECIFIC answers from previous submissions for each question. You must answer ALL questions provided. Use the exact, specific answer text from the submissions - avoid generic descriptions. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
-            max_tokens=4000
+            max_tokens=6000
         )
         
         # Get the response content
