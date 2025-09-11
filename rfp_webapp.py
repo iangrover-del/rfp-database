@@ -1048,6 +1048,11 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     """
     
     try:
+        # Debug: Print what we're sending to AI
+        print(f"DEBUG: Sending to AI - existing_summary length: {len(existing_summary)}")
+        print(f"DEBUG: Sending to AI - new_content length: {len(new_content)}")
+        print(f"DEBUG: First 200 chars of existing_summary: {existing_summary[:200]}...")
+        
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
@@ -1060,6 +1065,9 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         
         # Get the response content
         response_content = response.choices[0].message.content
+        
+        # Debug: Print the raw AI response
+        print(f"DEBUG: Raw AI response: {response_content[:500]}...")
         
         # Check if response is empty
         if not response_content or response_content.strip() == "":
