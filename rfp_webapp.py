@@ -884,9 +884,16 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
             if submission[4]:  # extracted_data or extracted_answers
                 try:
                     data = json.loads(submission[4])
-                    for category, info in data.items():
-                        if info and isinstance(info, (str, dict)):
-                            existing_summary += f"{category}: {str(info)[:200]}...\n"
+                    # Check if this is question-only data or has answers too
+                    if 'all_questions_found' in data:
+                        existing_summary += f"Questions found: {len(data['all_questions_found'])}\n"
+                        existing_summary += f"First 5 questions: {data['all_questions_found'][:5]}\n"
+                        existing_summary += "NOTE: This appears to be question-only data. We need the actual RFP responses/answers.\n"
+                    else:
+                        # This might have actual content
+                        for category, info in data.items():
+                            if info and isinstance(info, (str, dict)):
+                                existing_summary += f"{category}: {str(info)[:200]}...\n"
                 except:
                     pass
             existing_summary += "\n---\n"
@@ -1529,6 +1536,27 @@ def show_process_page(client):
                 if matches:
                     st.subheader("🔍 Raw AI Response (Debug)")
                     st.json(matches)
+                
+                # Show what content was sent to the AI for matching
+                st.subheader("🔍 Content Sent to AI (Debug)")
+                if existing_submissions:
+                    st.write("**Content summary sent to AI:**")
+                    # Show a sample of what the AI received
+                    sample_content = ""
+                    for i, sub in enumerate(existing_submissions[:2]):
+                        sample_content += f"RFP {i+1}: {sub[1]}\n"
+                        if len(sub) > 4 and sub[4]:
+                            try:
+                                data = json.loads(sub[4])
+                                if 'all_questions_found' in data:
+                                    questions = data['all_questions_found']
+                                    sample_content += f"Questions: {len(questions)} found\n"
+                                    sample_content += f"First 3 questions: {questions[:3]}\n"
+                            except:
+                                sample_content += "Content parsing error\n"
+                        sample_content += "\n"
+                    
+                    st.text_area("Sample content sent to AI:", sample_content, height=200)
                 
                 # Show actual content from RFPs for debugging
                 if existing_submissions:
