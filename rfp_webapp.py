@@ -1026,11 +1026,28 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     2. SECOND: For each question, find the BEST matching answer from previous submissions
     3. THIRD: Provide the most relevant, accurate answer for each question
     
+    QUESTION EXTRACTION REQUIREMENTS:
+    - Extract EVERY question, request, or information requirement
+    - Include questions that end with "?" AND questions that don't end with "?"
+    - Include numbered items, bullet points, table headers, and any text that asks for information
+    - Look for questions in tables, forms, and structured sections
+    - Extract questions that are embedded in longer text
+    - Look for questions that start with action words like "Describe", "Explain", "Provide", "List", "Detail"
+    - Include questions that are part of larger statements
+    - Look for questions in section headers and subheaders
+    - Extract questions from any text that asks for specific information, details, or responses
+    - Be EXTREMELY thorough - extract everything that could be considered a question or request
+    
     MATCHING STRATEGY:
     - Look for DIRECT question matches first (same or very similar wording)
     - Then look for CONCEPTUAL matches (same topic, different wording)
     - Match topics like: company info, technical requirements, business objectives, security, compliance, etc.
     - Use your knowledge to suggest relevant answers even if questions are worded differently
+    - Be FLEXIBLE with matching - if a question is about the same topic, use the best available answer
+    - Don't require exact word matches - look for similar concepts and themes
+    - If a question is about "company information" and you have company info answers, use them
+    - If a question is about "technical capabilities" and you have tech answers, use them
+    - Prioritize finding ANY relevant answer over perfect matches
     
     CONFIDENCE WEIGHTING RULES:
     - CORRECTED ANSWERS: 100% confidence (user improved these)
