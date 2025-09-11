@@ -1014,82 +1014,41 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     print(f"DEBUG: Existing summary preview: {existing_summary[:500]}...")
     
     prompt = f"""
-    You are an expert RFP analyst helping to fill out a new RFP based on previous submissions. Your job is to find the BEST matching answers for each question in the new RFP.
-    
+    You are an expert RFP analyst. Your job is simple: find answers from the previous submissions below to answer questions in the new RFP.
+
+    PREVIOUS SUBMISSIONS WITH ANSWERS:
     {existing_summary}
-    
-    New RFP content:
-    {new_content[:8000]}
-    
-    CRITICAL INSTRUCTIONS:
-    1. FIRST: Extract ALL specific questions from the new RFP (not just section headers)
-    2. SECOND: For each question, find the BEST matching answer from previous submissions
-    3. THIRD: Provide the most relevant, accurate answer for each question
-    
-    QUESTION EXTRACTION REQUIREMENTS:
-    - Extract EVERY question, request, or information requirement
-    - Include questions that end with "?" AND questions that don't end with "?"
-    - Include numbered items, bullet points, table headers, and any text that asks for information
-    - Look for questions in tables, forms, and structured sections
-    - Extract questions that are embedded in longer text
-    - Look for questions that start with action words like "Describe", "Explain", "Provide", "List", "Detail"
-    - Include questions that are part of larger statements
-    - Look for questions in section headers and subheaders
-    - Extract questions from any text that asks for specific information, details, or responses
-    - Be EXTREMELY thorough - extract everything that could be considered a question or request
-    
-    MATCHING STRATEGY:
-    - Look for DIRECT question matches first (same or very similar wording)
-    - Then look for CONCEPTUAL matches (same topic, different wording)
-    - Match topics like: company info, technical requirements, business objectives, security, compliance, etc.
-    - Use your knowledge to suggest relevant answers even if questions are worded differently
-    - Be FLEXIBLE with matching - if a question is about the same topic, use the best available answer
-    - Don't require exact word matches - look for similar concepts and themes
-    - If a question is about "company information" and you have company info answers, use them
-    - If a question is about "technical capabilities" and you have tech answers, use them
-    - Prioritize finding ANY relevant answer over perfect matches
-    
-    CONFIDENCE WEIGHTING RULES:
-    - CORRECTED ANSWERS: 100% confidence (user improved these)
-    - WINNING RFPs: 95% confidence (proven to work)
-    - UNKNOWN/PENDING: 80% confidence (might be good, include them)
-    - LOST RFPs: 60% confidence (include but weight lower - might have lost for non-RFP reasons)
-    
-    ANSWER QUALITY REQUIREMENTS:
-    - MANDATORY: Use ONLY ACTUAL content from previous RFP submissions - NO placeholder text allowed
-    - FORBIDDEN: Never use "[specific details]", "[explained]", "[details]", or any placeholder text
-    - REQUIRED: Extract and use the EXACT text from previous submissions, even if it's not a perfect match
-    - If you find ANY relevant content in previous submissions, use it verbatim
-    - Provide DETAILED, COMPREHENSIVE answers using the actual content from your historical RFPs
-    - Include specific examples, processes, timelines, and details from the actual submissions
-    - Make answers in-depth and thorough using real content, not generic responses
-    - If no specific content is found, say "No specific answer found in previous submissions"
-    - NEVER generate placeholder text or generic suggestions
-    - ALWAYS use the best available content from your historical RFPs
-    
-    For each question in the new RFP, provide:
-    1. The exact question from the new RFP
-    2. A suggested answer that directly addresses that question
-    3. A confidence score (0-100) based on the source RFP's win status
-    4. The source RFP that provided the best answer
-    5. The source RFP's win status
-    6. The category/theme matched
-    7. Why this answer matches the question
-    
-    Format your response as JSON with this structure:
+
+    NEW RFP QUESTIONS TO ANSWER:
+    {new_content[:6000]}
+
+    SIMPLE INSTRUCTIONS:
+    1. Look at each question in the new RFP
+    2. Find the best matching answer from the previous submissions above
+    3. Use the EXACT answer text from the previous submissions
+    4. If you find a relevant answer, use it - don't be picky about perfect matches
+
+    EXAMPLES OF GOOD MATCHES:
+    - New question: "What is your company name?" → Use any company name answer from previous submissions
+    - New question: "Describe your technology" → Use any technology description from previous submissions  
+    - New question: "What are your capabilities?" → Use any capabilities answer from previous submissions
+
+    IMPORTANT: Use the actual answers from the submissions above. Don't say "No specific answer found" if there is ANY relevant content.
+
+    Return JSON format:
     {{
         "matches": [
             {{
-                "question": "exact question from new RFP",
-                "suggested_answer": "specific answer that addresses the question",
-                "confidence": 85,
+                "question": "question from new RFP",
+                "suggested_answer": "actual answer from previous submissions",
+                "confidence": 90,
                 "source_rfp": "filename.pdf",
-                "category": "company_info|technical|business|security|compliance|timeline|etc",
-                "source_status": "won|lost|unknown|pending|corrected",
-                "matching_reason": "brief explanation of why this answer matches the question"
+                "category": "company_info",
+                "source_status": "won",
+                "matching_reason": "similar topic"
             }}
         ],
-        "overall_confidence": 75
+        "overall_confidence": 85
     }}
     """
     
@@ -1097,7 +1056,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
             messages=[
-                {"role": "system", "content": "You are an expert RFP analyst specializing in question-answer matching. Your job is to: 1) Extract ALL specific questions from the new RFP, 2) Find the BEST matching answers from previous submissions, 3) Provide detailed, comprehensive answers using ONLY actual content from previous RFPs. CRITICAL: You MUST use the EXACT content from the submissions above. NEVER use placeholder text like '[specific details]', '[explained]', or '[details]'. If you find ANY relevant content in the submissions, use it verbatim. If no content is found, say 'No specific answer found in previous submissions'. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an expert RFP analyst. Your job is simple: find answers from previous submissions to answer new RFP questions. Use the exact answers from the previous submissions. Don't be picky about perfect matches - if the topic is similar, use the answer. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,  # Balanced for good responses
