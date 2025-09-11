@@ -891,9 +891,27 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 continue
     
     print(f"DEBUG: Found {len(all_qa_pairs)} question-answer pairs from historical RFPs")
+    if all_qa_pairs:
+        print(f"DEBUG: First Q&A pair: Q: {all_qa_pairs[0]['question'][:100]}... A: {all_qa_pairs[0]['answer'][:100]}...")
+    else:
+        print("DEBUG: No Q&A pairs found - checking data structure...")
+        for i, submission in enumerate(existing_submissions[:2]):
+            print(f"DEBUG: Submission {i+1}: {submission[1]}")
+            if len(submission) > 4 and submission[4]:
+                try:
+                    data = json.loads(submission[4])
+                    print(f"DEBUG: Data keys: {list(data.keys())}")
+                    if 'question_answer_pairs' in data:
+                        print(f"DEBUG: Found {len(data['question_answer_pairs'])} pairs in this submission")
+                    else:
+                        print("DEBUG: No 'question_answer_pairs' key found")
+                except Exception as e:
+                    print(f"DEBUG: Error parsing data: {e}")
     
     # For each new question, find the best matching answer
-    for question in questions[:10]:  # Limit to first 10
+    print(f"DEBUG: Processing {len(questions)} questions, limiting to first 10")
+    for i, question in enumerate(questions[:10]):  # Limit to first 10
+        print(f"DEBUG: Processing question {i+1}: {question[:100]}...")
         best_match = None
         best_score = 0
         
@@ -921,6 +939,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             if score > best_score:
                 best_score = score
                 best_match = qa_pair
+                print(f"DEBUG: New best match (score {score}): {qa_pair['answer'][:100]}...")
         
         if best_match and best_score > 0:
             matches.append({
