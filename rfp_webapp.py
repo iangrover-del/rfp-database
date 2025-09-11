@@ -1512,6 +1512,12 @@ def show_process_page(client):
                 # Get existing submissions
                 existing_submissions = get_all_submissions()
                 
+                # Debug: Show what content we extracted
+                st.write("🔍 **Debug: Extracted Content Preview**")
+                st.write(f"Content length: {len(content)} characters")
+                st.write(f"First 1000 characters: {content[:1000]}")
+                st.write(f"Last 1000 characters: {content[-1000:]}")
+                
                 # Find matching answers
                 matches = find_matching_answers(content, existing_submissions, client)
                 
