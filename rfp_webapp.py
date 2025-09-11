@@ -859,6 +859,179 @@ def extract_numbered_questions(content: str) -> List[str]:
     
     return questions
 
+def find_matching_answers_with_questions(questions: List[str], existing_submissions: List, client) -> Dict[str, Any]:
+    """Find matching answers for pre-processed questions"""
+    
+    if not existing_submissions:
+        return {
+            "matches": [], 
+            "confidence": 0,
+            "error": "No historical RFPs found in database. Please upload some historical RFPs first to build a knowledge base.",
+            "suggestion": "Go to 'Upload Historical RFPs' to add your past successful proposals."
+        }
+    
+    # Get corrected answers from database
+    conn = init_database()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT question_category, question_text, answer_text, confidence_score, source_rfp_id
+        FROM rfp_answers
+        ORDER BY confidence_score DESC
+    ''')
+    corrected_answers = cursor.fetchall()
+    conn.close()
+    
+    # Create summary of existing submissions
+    existing_summary = "Previous RFP Submissions:\n\n"
+    
+    # Debug: Print what we're working with
+    print(f"DEBUG: Found {len(existing_submissions)} existing submissions")
+    for i, sub in enumerate(existing_submissions[:3]):  # Show first 3
+        print(f"DEBUG: Submission {i+1}: {sub[1]} | Content length: {len(str(sub[4])) if len(sub) > 4 and sub[4] else 0}")
+        if len(sub) > 4 and sub[4]:
+            try:
+                data = json.loads(sub[4])
+                print(f"DEBUG: Data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+            except:
+                print(f"DEBUG: Could not parse data")
+    
+    # Add won submissions (highest priority - 95% confidence)
+    won_submissions = [s for s in existing_submissions if len(s) > 5 and s[5] == 'won']
+    if won_submissions:
+        existing_summary += "WON RFP SUBMISSIONS (Highest Priority - 95% Confidence - Use these first):\n"
+        for i, submission in enumerate(won_submissions):
+            existing_summary += f"RFP {i+1}: {submission[1]}\n"
+            existing_summary += f"Confidence: 95% (Proven winner)\n"
+            if submission[4]:  # extracted_data or extracted_answers
+                try:
+                    data = json.loads(submission[4])
+                    # Check for new question-answer format
+                    if 'question_answer_pairs' in data:
+                        pairs = data['question_answer_pairs']
+                        existing_summary += f"Question-answer pairs found: {len(pairs)}\n"
+                        for i, pair in enumerate(pairs[:3]):  # Show first 3 pairs
+                            if isinstance(pair, dict):
+                                existing_summary += f"Q{i+1}: {pair.get('question', 'N/A')[:100]}...\n"
+                                existing_summary += f"A{i+1}: {pair.get('answer', 'N/A')[:200]}...\n"
+                        if len(pairs) > 3:
+                            existing_summary += f"... and {len(pairs) - 3} more question-answer pairs\n"
+                    elif 'all_questions_found' in data:
+                        existing_summary += f"Questions found: {len(data['all_questions_found'])}\n"
+                        existing_summary += f"First 5 questions: {data['all_questions_found'][:5]}\n"
+                        existing_summary += "NOTE: This appears to be question-only data. We need the actual RFP responses/answers.\n"
+                    else:
+                        # This might have actual content
+                        existing_summary += f"Raw data keys: {list(data.keys())}\n"
+                except:
+                    pass
+            existing_summary += "\n---\n"
+        existing_summary += "\n"
+    
+    # Add unknown/pending submissions (medium priority - 80% confidence)
+    unknown_submissions = [s for s in existing_submissions if len(s) <= 5 or s[5] in ['unknown', 'pending']]
+    if unknown_submissions:
+        existing_summary += "UNKNOWN/PENDING RFP SUBMISSIONS (Medium Priority - 80% Confidence - Include these):\n"
+        for i, submission in enumerate(unknown_submissions):
+            existing_summary += f"RFP {i+1}: {submission[1]}\n"
+            existing_summary += f"Confidence: 80% (Unknown status)\n"
+            if submission[4]:  # extracted_data or extracted_answers
+                try:
+                    data = json.loads(submission[4])
+                    # Check for new question-answer format
+                    if 'question_answer_pairs' in data:
+                        pairs = data['question_answer_pairs']
+                        existing_summary += f"Question-answer pairs found: {len(pairs)}\n"
+                        for i, pair in enumerate(pairs[:3]):  # Show first 3 pairs
+                            if isinstance(pair, dict):
+                                existing_summary += f"Q{i+1}: {pair.get('question', 'N/A')[:100]}...\n"
+                                existing_summary += f"A{i+1}: {pair.get('answer', 'N/A')[:200]}...\n"
+                        if len(pairs) > 3:
+                            existing_summary += f"... and {len(pairs) - 3} more question-answer pairs\n"
+                    elif 'all_questions_found' in data:
+                        existing_summary += f"Questions found: {len(data['all_questions_found'])}\n"
+                        existing_summary += f"First 5 questions: {data['all_questions_found'][:5]}\n"
+                        existing_summary += "NOTE: This appears to be question-only data. We need the actual RFP responses/answers.\n"
+                    else:
+                        # This might have actual content
+                        existing_summary += f"Raw data keys: {list(data.keys())}\n"
+                except:
+                    pass
+            existing_summary += "\n---\n"
+        existing_summary += "\n"
+    
+    # Create the questions list for the AI
+    questions_text = "QUESTIONS TO ANSWER:\n"
+    for i, question in enumerate(questions):
+        questions_text += f"{i+1}. {question}\n"
+    
+    # Create the prompt
+    prompt = f"""
+    You are an expert RFP analyst. Your job is to find answers from the previous submissions below to answer the questions above.
+
+    PREVIOUS SUBMISSIONS WITH ANSWERS (use these to find answers):
+    {existing_summary}
+
+    {questions_text}
+
+    CRITICAL INSTRUCTIONS:
+    1. For each question above, find the best matching answer from the previous submissions
+    2. Use the EXACT answer text from the previous submissions
+    3. Be FLEXIBLE with matching - if the topic is even remotely related, use the answer
+    4. NEVER say "No specific answer found" - always find the most relevant answer from the submissions
+
+    Return JSON format:
+    {{
+        "matches": [
+            {{
+                "question": "question from the list above",
+                "suggested_answer": "actual answer from previous submissions",
+                "confidence": 90,
+                "source_rfp": "filename.pdf",
+                "category": "company_info",
+                "source_status": "won",
+                "matching_reason": "similar topic"
+            }}
+        ],
+        "overall_confidence": 85,
+        "total_questions_found": {len(questions)}
+    }}
+    """
+    
+    try:
+        # Debug: Print what we're sending to AI
+        print(f"DEBUG: Sending to AI - existing_summary length: {len(existing_summary)}")
+        print(f"DEBUG: Sending to AI - questions count: {len(questions)}")
+        print(f"DEBUG: First 200 chars of existing_summary: {existing_summary[:200]}...")
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are an expert RFP analyst. Your job is simple: find answers from previous submissions to answer the questions provided. Use the exact answers from the previous submissions. Don't be picky about perfect matches - if the topic is similar, use the answer. Always respond with valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            max_tokens=4000
+        )
+        
+        # Get the response content
+        response_content = response.choices[0].message.content
+        
+        # Debug: Print the raw AI response
+        print(f"DEBUG: Raw AI response: {response_content[:500]}...")
+        
+        # Check if response is empty
+        if not response_content or response_content.strip() == "":
+            return {"matches": [], "confidence": 0, "error": "AI returned empty response. This might be due to API quota limits or content filtering."}
+        
+        # Try to parse JSON
+        try:
+            return json.loads(response_content)
+        except json.JSONDecodeError as json_error:
+            return {"matches": [], "confidence": 0, "error": f"Failed to parse AI response as JSON: {json_error}"}
+    
+    except Exception as e:
+        return {"matches": [], "confidence": 0, "error": f"Error calling AI: {str(e)}"}
+
 def find_matching_answers(new_content: str, existing_submissions: List, client) -> Dict[str, Any]:
     """Find matching answers for new RFP"""
     
@@ -1568,8 +1741,8 @@ def show_process_page(client):
                         except:
                             st.write(f"  - Error parsing data")
                 
-                # Find matching answers
-                matches = find_matching_answers(content, existing_submissions, client)
+                # Find matching answers using pre-processed questions
+                matches = find_matching_answers_with_questions(questions, existing_submissions, client)
                 
                 st.success("✅ RFP processed successfully!")
                 
