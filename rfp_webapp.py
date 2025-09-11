@@ -395,38 +395,8 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
         if file_extension == 'pdf':
             pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
             text = ""
-            total_pages = len(pdf_reader.pages)
-            print(f"DEBUG: PDF has {total_pages} pages")
-            
-            for page_num in range(total_pages):
-                try:
-                    page = pdf_reader.pages[page_num]
-                page_text = page.extract_text()
-                    print(f"DEBUG: Page {page_num + 1} extracted {len(page_text)} characters")
-                if page_text.strip():  # Only add non-empty pages
-                    text += f"\n--- PAGE {page_num + 1} ---\n"
-                    text += page_text + "\n"
-                    else:
-                        print(f"DEBUG: Page {page_num + 1} is empty")
-                except Exception as e:
-                    print(f"DEBUG: Error extracting page {page_num + 1}: {e}")
-                    text += f"\n--- PAGE {page_num + 1} (ERROR) ---\n"
-                    text += f"Error extracting page: {e}\n"
-            
-            # Add debug info about content length
-            text += f"\n\n=== DEBUG INFO ===\n"
-            text += f"Total pages: {len(pdf_reader.pages)}\n"
-            text += f"Total characters extracted: {len(text)}\n"
-            text += f"Content preview (first 1000 chars): {text[:1000]}...\n"
-            text += f"Content preview (last 1000 chars): ...{text[-1000:]}\n"
-            
-            # Debug: Show content from each page
-            for page_num, page in enumerate(pdf_reader.pages):
-                page_text = page.extract_text()
-                text += f"\n--- PAGE {page_num + 1} CONTENT ---\n"
-                text += f"Page {page_num + 1} length: {len(page_text)} characters\n"
-                text += f"Page {page_num + 1} preview: {page_text[:500]}...\n"
-            
+            for page in pdf_reader.pages:
+                text += page.extract_text() + "\n"
             return text
         elif file_extension == 'docx':
             doc = Document(io.BytesIO(file_content))
