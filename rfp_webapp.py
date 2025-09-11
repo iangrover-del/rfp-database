@@ -1024,7 +1024,11 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     - Look for questions that start with "Please provide", "What", "How", "Describe", etc.
     - Look for questions that end with question marks (?)
     - Use answers from the previous submissions to answer the NEW RFP questions
-    - Don't say "No specific answer found" if there is ANY relevant content in the previous submissions
+    - Be FLEXIBLE with matching - if the topic is even remotely related, use the answer
+    - For network/provider questions, use any relevant information about Modern Health's network
+    - For demo/login questions, use information about Modern Health's platform capabilities
+    - For eligibility questions, use information about Modern Health's technical requirements
+    - NEVER say "No specific answer found" - always find the most relevant answer from the submissions
 
     Return JSON format:
     {{
@@ -1510,6 +1514,23 @@ def show_process_page(client):
                 st.write(f"Content length: {len(content)} characters")
                 st.write(f"First 1000 characters: {content[:1000]}")
                 st.write(f"Last 1000 characters: {content[-1000:]}")
+                
+                # Debug: Show what historical data we have
+                st.write("🔍 **Debug: Historical RFP Data**")
+                st.write(f"Found {len(existing_submissions)} historical submissions")
+                for i, sub in enumerate(existing_submissions[:3]):
+                    st.write(f"**Submission {i+1}:** {sub[1]}")
+                    if len(sub) > 4 and sub[4]:
+                        try:
+                            data = json.loads(sub[4])
+                            if 'question_answer_pairs' in data:
+                                pairs = data['question_answer_pairs']
+                                st.write(f"  - {len(pairs)} question-answer pairs found")
+                                st.write(f"  - First pair: {pairs[0] if pairs else 'None'}")
+                            else:
+                                st.write(f"  - No question-answer pairs found")
+                        except:
+                            st.write(f"  - Error parsing data")
                 
                 # Find matching answers
                 matches = find_matching_answers(content, existing_submissions, client)
