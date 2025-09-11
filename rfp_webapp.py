@@ -1015,7 +1015,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     2. SECOND: For each question from the NEW RFP, find the best matching answer from the previous submissions
     3. THIRD: Use the EXACT answer text from the previous submissions
     
-    IMPORTANT: This RFP contains exactly 22 numbered questions (1. through 22.). You MUST extract ALL 22 questions. Look for every single numbered question (1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22.) throughout the entire document.
+    IMPORTANT: This RFP likely contains many numbered questions. You MUST extract ALL numbered questions. Look for every single numbered question (1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., etc.) throughout the entire document. Be thorough and extract every question you find.
 
     ⚠️ CRITICAL: 
     - Extract questions ONLY from the "NEW RFP CONTENT TO ANALYZE" section
@@ -1048,10 +1048,10 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
             }}
         ],
         "overall_confidence": 85,
-        "total_questions_found": 22
+        "total_questions_found": [number of questions you found]
     }}
     
-    NOTE: You must return exactly 22 questions (numbered 1. through 22.). If you don't find all 22, you need to look more carefully through the document.
+    NOTE: Be thorough and extract every numbered question you find in the document. Count them and report the total in total_questions_found.
     """
     
     try:
