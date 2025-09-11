@@ -915,12 +915,12 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         best_match = None
         best_score = 0
         
-        # Simple keyword matching
+        # More flexible keyword matching
         question_lower = question.lower()
         question_keywords = set(question_lower.split())
         
         for qa_pair in all_qa_pairs:
-            # Calculate simple similarity score
+            # Calculate similarity score
             answer_lower = qa_pair['answer'].lower()
             answer_keywords = set(answer_lower.split())
             
@@ -928,20 +928,35 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             common_keywords = question_keywords.intersection(answer_keywords)
             score = len(common_keywords)
             
-            # Boost score for specific matches
-            if any(word in answer_lower for word in ['network', 'provider', 'coach', 'therapist'] if word in question_lower):
-                score += 2
-            if any(word in answer_lower for word in ['timeline', 'implementation', 'plan'] if word in question_lower):
-                score += 2
-            if any(word in answer_lower for word in ['eligibility', 'dependent', 'coverage'] if word in question_lower):
-                score += 2
+            # Boost score for specific topic matches
+            topic_boosts = [
+                (['network', 'provider', 'coach', 'therapist'], 3),
+                (['timeline', 'implementation', 'plan'], 3),
+                (['eligibility', 'dependent', 'coverage'], 3),
+                (['demo', 'sample', 'login'], 2),
+                (['visit', 'limit', 'enrolled'], 2),
+                (['leave', 'absence', 'loa', 'cism'], 2),
+                (['standard', 'process', 'flow'], 2)
+            ]
+            
+            for topic_words, boost in topic_boosts:
+                if any(word in question_lower for word in topic_words):
+                    if any(word in answer_lower for word in topic_words):
+                        score += boost
+            
+            # Also check for partial word matches
+            for q_word in question_keywords:
+                for a_word in answer_keywords:
+                    if len(q_word) > 3 and len(a_word) > 3:  # Only for longer words
+                        if q_word in a_word or a_word in q_word:
+                            score += 1
             
             if score > best_score:
                 best_score = score
                 best_match = qa_pair
                 print(f"DEBUG: New best match (score {score}): {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score > 0:
+        if best_match and best_score >= 0:  # Accept any match, even score 0
             matches.append({
                 "question": question,
                 "suggested_answer": best_match['answer'],
