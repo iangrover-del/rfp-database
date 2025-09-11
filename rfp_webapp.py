@@ -1015,18 +1015,20 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     2. SECOND: For each question from the NEW RFP, find the best matching answer from the previous submissions
     3. THIRD: Use the EXACT answer text from the previous submissions
     
-    IMPORTANT: This RFP likely contains many numbered questions. You MUST extract ALL numbered questions. Look for every single numbered question (1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., etc.) throughout the entire document. Be thorough and extract every question you find.
+    IMPORTANT: This RFP contains numbered questions. You MUST extract ALL numbered questions. Look for every single numbered question (1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., 26., 27., 28., 29., 30., etc.) throughout the entire document. Be extremely thorough and extract every single numbered question you find. Do not miss any.
 
     ⚠️ CRITICAL: 
     - Extract questions ONLY from the "NEW RFP CONTENT TO ANALYZE" section
     - DO NOT extract questions from the "PREVIOUS SUBMISSIONS" section
     - The "PREVIOUS SUBMISSIONS" section contains ANSWERS, not questions to extract
     - Look for questions throughout the ENTIRE document, not just the beginning
-    - EXTRACT ALL NUMBERED QUESTIONS: Look for any text that starts with a number followed by a period (1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., etc.)
+    - EXTRACT ALL NUMBERED QUESTIONS: Look for any text that starts with a number followed by a period (1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., 26., 27., 28., 29., 30., etc.)
     - Also look for questions that start with "Please provide", "What", "How", "Describe", "Can you", "Will you", etc.
     - Look for questions that end with question marks (?)
     - Look for questions that end with periods (.) - many RFP questions don't have question marks
     - Extract EVERYTHING that looks like a question or request for information
+    - Be extremely thorough - scan the entire document multiple times to ensure you don't miss any numbered questions
+    - If you find questions numbered 1-22, make sure you extract ALL of them, not just some
     - Use answers from the previous submissions to answer the NEW RFP questions
     - Be FLEXIBLE with matching - if the topic is even remotely related, use the answer
     - For network/provider questions, use any relevant information about Modern Health's network
