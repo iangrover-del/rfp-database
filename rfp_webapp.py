@@ -959,51 +959,21 @@ def find_matching_answers_with_questions(questions: List[str], existing_submissi
             existing_summary += "\n---\n"
         existing_summary += "\n"
     
-    # Create the questions list for the AI
+    # Create a simple questions list
     questions_text = "QUESTIONS TO ANSWER:\n"
-    for i, question in enumerate(questions):
+    for i, question in enumerate(questions[:10]):  # Limit to first 10 questions
         questions_text += f"{i+1}. {question}\n"
     
-    # Create the prompt
-    prompt = f"""
-    You are an expert RFP analyst. Your job is to find answers from the previous submissions below to answer the questions above.
+    # Create a much simpler prompt
+    prompt = f"""Find answers from the submissions below for these questions:
 
-    PREVIOUS SUBMISSIONS WITH ANSWERS (use these to find answers):
-    {existing_summary}
+{questions_text}
 
-    {questions_text}
+SUBMISSIONS:
+{existing_summary}
 
-    CRITICAL INSTRUCTIONS:
-    1. You MUST answer ALL {len(questions)} questions above - no exceptions
-    2. For each question, find the MOST SPECIFIC answer from the previous submissions
-    3. Look for exact matches first, then similar topics
-    4. Use the EXACT answer text from the previous submissions - don't generalize
-    5. If a question asks for specific details (like "complete the table" or "provide timeline"), find the most relevant specific answer
-    6. NEVER use generic company descriptions unless the question specifically asks for company overview
-    7. For network/provider questions, find actual network data
-    8. For implementation questions, find actual timelines and plans
-    9. For eligibility questions, find actual eligibility requirements
-
-    Return JSON format with EXACTLY {len(questions)} matches (one for each question):
-    {{
-        "matches": [
-            {{
-                "question": "exact question from the list above",
-                "suggested_answer": "specific, detailed answer from previous submissions",
-                "confidence": 90,
-                "source_rfp": "filename.pdf",
-                "category": "specific_category",
-                "source_status": "won",
-                "matching_reason": "exact match or similar topic"
-            }}
-        ],
-        "overall_confidence": 85,
-        "total_questions_found": {len(questions)},
-        "questions_answered": {len(questions)}
-    }}
-    
-    IMPORTANT: You must provide exactly {len(questions)} matches - one for each question above. Do not skip any questions.
-    """
+Return JSON with answers for each question:
+{{"matches": [{{"question": "question text", "suggested_answer": "answer from submissions", "confidence": 90, "source_rfp": "filename.pdf", "category": "type", "source_status": "won", "matching_reason": "match reason"}}], "overall_confidence": 85}}"""
     
     try:
         # Debug: Print what we're sending to AI
@@ -1016,7 +986,7 @@ def find_matching_answers_with_questions(questions: List[str], existing_submissi
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are an expert RFP analyst. Your job is to find SPECIFIC answers from previous submissions for each question. You must answer ALL questions provided. Use the exact, specific answer text from the submissions - avoid generic descriptions. Always respond with valid JSON."},
+                {"role": "system", "content": "You are an RFP analyst. Find answers from the submissions for each question. Return valid JSON only."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
