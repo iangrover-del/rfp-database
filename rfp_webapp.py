@@ -880,8 +880,11 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 data = json.loads(submission[4])
                 
                 # Try different data formats
+                print(f"DEBUG: Processing {submission[1]}, data keys: {list(data.keys())}")
+                
                 if 'question_answer_pairs' in data:
                     # Format 1: question_answer_pairs
+                    print(f"DEBUG: Found question_answer_pairs in {submission[1]}, count: {len(data['question_answer_pairs'])}")
                     for pair in data['question_answer_pairs']:
                         if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
                             all_qa_pairs.append({
@@ -896,6 +899,12 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 else:
                     # Format 3: Try to extract from raw content
                     print(f"DEBUG: Unknown data format in {submission[1]}, keys: {list(data.keys())}")
+                    # Let's see what's actually in the data
+                    for key, value in data.items():
+                        if isinstance(value, list) and len(value) > 0:
+                            print(f"DEBUG: Key '{key}' has {len(value)} items, first item type: {type(value[0])}")
+                            if isinstance(value[0], dict):
+                                print(f"DEBUG: First item keys: {list(value[0].keys())}")
                     
             except Exception as e:
                 print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
