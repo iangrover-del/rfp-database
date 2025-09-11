@@ -958,6 +958,10 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     
     existing_summary += "\n"
     
+    # Debug: Show what we're sending to the AI
+    print(f"DEBUG: Sending prompt to AI with {len(existing_summary)} characters of context")
+    print(f"DEBUG: New content length: {len(new_content)}")
+    
     prompt = f"""
     You are an expert RFP analyst helping to fill out a new RFP based on previous submissions. Your job is to find the BEST matching answers for each question in the new RFP.
     
@@ -1513,13 +1517,23 @@ def show_process_page(client):
                 # Show actual content from RFPs for debugging
                 if existing_submissions:
                     st.subheader("🔍 Content from Your RFPs (Debug)")
-                    for i, sub in enumerate(existing_submissions[:2]):  # Show first 2
+                    for i, sub in enumerate(existing_submissions[:3]):  # Show first 3
                         with st.expander(f"Content from: {sub[1]}"):
                             if len(sub) > 4 and sub[4]:
                                 try:
                                     data = json.loads(sub[4])
+                                    st.write(f"**Question count:** {data.get('question_count', 'Unknown')}")
+                                    if 'all_questions_found' in data:
+                                        questions = data['all_questions_found']
+                                        st.write(f"**Total questions found:** {len(questions)}")
+                                        st.write("**First 5 questions:**")
+                                        for j, q in enumerate(questions[:5]):
+                                            st.write(f"{j+1}. {q}")
+                                        if len(questions) > 5:
+                                            st.write(f"... and {len(questions) - 5} more questions")
                                     st.json(data)
-                                except:
+                                except Exception as e:
+                                    st.write(f"Error parsing content: {e}")
                                     st.write("Raw content:", sub[4][:1000] + "...")
                             else:
                                 st.write("No content found")
