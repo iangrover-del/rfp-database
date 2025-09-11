@@ -917,9 +917,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
                         existing_summary += "NOTE: This appears to be question-only data. We need the actual RFP responses/answers.\n"
                     else:
                         # This might have actual content
-                        for category, info in data.items():
-                        if info and isinstance(info, (str, dict)):
-                            existing_summary += f"{category}: {str(info)[:200]}...\n"
+                        existing_summary += f"Raw data keys: {list(data.keys())}\n"
                 except:
                     pass
             existing_summary += "\n---\n"
