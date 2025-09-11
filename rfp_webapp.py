@@ -957,16 +957,44 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
     
     # For each new question, find the best matching answer
     print(f"DEBUG: Processing {len(questions)} questions, limiting to first 10")
+    used_answers = set()  # Track used answers to avoid duplicates
+    
     for i, question in enumerate(questions[:10]):  # Limit to first 10
         print(f"DEBUG: Processing question {i+1}: {question[:100]}...")
         best_match = None
         best_score = 0
         
-        # More flexible keyword matching
+        # More specific keyword matching
         question_lower = question.lower()
         question_keywords = set(question_lower.split())
         
+        # Define specific topic keywords for better matching
+        topic_keywords = {
+            'network': ['network', 'provider', 'coach', 'therapist', 'coverage'],
+            'timeline': ['timeline', 'implementation', 'plan', 'launch', 'deploy'],
+            'eligibility': ['eligibility', 'dependent', 'coverage', 'file', 'requirements'],
+            'demo': ['demo', 'sample', 'login', 'capabilities', 'show'],
+            'visit_limit': ['visit', 'limit', 'enrolled', 'medical', 'exhaust', 'session'],
+            'loa_cism': ['leave', 'absence', 'loa', 'cism', 'manager', 'referral', 'process'],
+            'fitness_duty': ['fitness', 'duty', 'standard', 'process', 'delivery', 'time'],
+            'table': ['table', 'complete', 'based', 'current', 'network'],
+            'geo_access': ['geo', 'access', 'census', 'pricing', 'document'],
+            'wait_times': ['wait', 'time', 'appointment', 'average']
+        }
+        
+        # Determine the main topic of the question
+        question_topic = None
+        for topic, keywords in topic_keywords.items():
+            if any(keyword in question_lower for keyword in keywords):
+                question_topic = topic
+                break
+        
         for qa_pair in all_qa_pairs:
+            # Skip if we've already used this answer
+            answer_hash = hash(qa_pair['answer'][:200])  # Use first 200 chars as hash
+            if answer_hash in used_answers:
+                continue
+                
             # Calculate similarity score
             answer_lower = qa_pair['answer'].lower()
             answer_keywords = set(answer_lower.split())
@@ -976,34 +1004,33 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             score = len(common_keywords)
             
             # Boost score for specific topic matches
-            topic_boosts = [
-                (['network', 'provider', 'coach', 'therapist'], 3),
-                (['timeline', 'implementation', 'plan'], 3),
-                (['eligibility', 'dependent', 'coverage'], 3),
-                (['demo', 'sample', 'login'], 2),
-                (['visit', 'limit', 'enrolled'], 2),
-                (['leave', 'absence', 'loa', 'cism'], 2),
-                (['standard', 'process', 'flow'], 2)
-            ]
+            if question_topic and question_topic in topic_keywords:
+                topic_words = topic_keywords[question_topic]
+                if any(word in answer_lower for word in topic_words):
+                    score += 5  # Higher boost for topic matches
             
-            for topic_words, boost in topic_boosts:
-                if any(word in question_lower for word in topic_words):
-                    if any(word in answer_lower for word in topic_words):
-                        score += boost
+            # Penalize generic network coverage answers for non-network questions
+            if question_topic and question_topic != 'network' and 'network coverage system' in answer_lower:
+                score -= 3
             
-            # Also check for partial word matches
-            for q_word in question_keywords:
-                for a_word in answer_keywords:
-                    if len(q_word) > 3 and len(a_word) > 3:  # Only for longer words
-                        if q_word in a_word or a_word in q_word:
-                            score += 1
+            # Boost for exact phrase matches
+            if 'visit limit' in question_lower and 'visit limit' in answer_lower:
+                score += 10
+            if 'implementation timeline' in question_lower and 'implementation' in answer_lower:
+                score += 10
+            if 'loa' in question_lower and ('loa' in answer_lower or 'leave of absence' in answer_lower):
+                score += 10
             
             if score > best_score:
                 best_score = score
                 best_match = qa_pair
                 print(f"DEBUG: New best match (score {score}): {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score >= 0:  # Accept any match, even score 0
+        if best_match and best_score > 2:  # Require minimum score of 3
+            # Mark this answer as used
+            answer_hash = hash(best_match['answer'][:200])
+            used_answers.add(answer_hash)
+            
             matches.append({
                 "question": question,
                 "suggested_answer": best_match['answer'],
