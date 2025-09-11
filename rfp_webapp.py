@@ -1018,7 +1018,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     {existing_summary}
 
     ===== NEW RFP CONTENT TO ANALYZE =====
-    {new_content[:6000]}
+    {new_content[:12000]}
     ===== END NEW RFP CONTENT =====
 
     CRITICAL INSTRUCTIONS:
@@ -1030,6 +1030,8 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     - Extract questions ONLY from the "NEW RFP CONTENT TO ANALYZE" section
     - DO NOT extract questions from the "PREVIOUS SUBMISSIONS" section
     - The "PREVIOUS SUBMISSIONS" section contains ANSWERS, not questions to extract
+    - Look for questions throughout the ENTIRE document, not just the beginning
+    - Questions may be numbered, bulleted, or in various formats
     - Use answers from the previous submissions to answer the NEW RFP questions
     - Don't say "No specific answer found" if there is ANY relevant content in the previous submissions
 
