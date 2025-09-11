@@ -1014,15 +1014,19 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     1. FIRST: Extract questions ONLY from the "NEW RFP CONTENT TO ANALYZE" section above
     2. SECOND: For each question from the NEW RFP, find the best matching answer from the previous submissions
     3. THIRD: Use the EXACT answer text from the previous submissions
+    
+    IMPORTANT: This RFP likely contains 20+ questions. You MUST extract ALL of them. Look for numbered questions (1., 2., 3., etc.) throughout the entire document.
 
     ⚠️ CRITICAL: 
     - Extract questions ONLY from the "NEW RFP CONTENT TO ANALYZE" section
     - DO NOT extract questions from the "PREVIOUS SUBMISSIONS" section
     - The "PREVIOUS SUBMISSIONS" section contains ANSWERS, not questions to extract
     - Look for questions throughout the ENTIRE document, not just the beginning
-    - Questions may be numbered (1., 2., 3.), bulleted, or in various formats
-    - Look for questions that start with "Please provide", "What", "How", "Describe", etc.
+    - EXTRACT ALL NUMBERED QUESTIONS: Look for any text that starts with a number followed by a period (1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., etc.)
+    - Also look for questions that start with "Please provide", "What", "How", "Describe", "Can you", "Will you", etc.
     - Look for questions that end with question marks (?)
+    - Look for questions that end with periods (.) - many RFP questions don't have question marks
+    - Extract EVERYTHING that looks like a question or request for information
     - Use answers from the previous submissions to answer the NEW RFP questions
     - Be FLEXIBLE with matching - if the topic is even remotely related, use the answer
     - For network/provider questions, use any relevant information about Modern Health's network
