@@ -1017,16 +1017,19 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     PREVIOUS SUBMISSIONS WITH ANSWERS (use these to find answers):
     {existing_summary}
 
-    NEW RFP CONTENT (extract questions from this and find answers from above):
+    ===== NEW RFP CONTENT TO ANALYZE =====
     {new_content[:6000]}
+    ===== END NEW RFP CONTENT =====
 
     CRITICAL INSTRUCTIONS:
-    1. FIRST: Extract questions from the NEW RFP content above (not from the previous submissions)
+    1. FIRST: Extract questions ONLY from the "NEW RFP CONTENT TO ANALYZE" section above
     2. SECOND: For each question from the NEW RFP, find the best matching answer from the previous submissions
     3. THIRD: Use the EXACT answer text from the previous submissions
 
-    IMPORTANT: 
-    - Extract questions from the NEW RFP content, not from the previous submissions
+    ⚠️ CRITICAL: 
+    - Extract questions ONLY from the "NEW RFP CONTENT TO ANALYZE" section
+    - DO NOT extract questions from the "PREVIOUS SUBMISSIONS" section
+    - The "PREVIOUS SUBMISSIONS" section contains ANSWERS, not questions to extract
     - Use answers from the previous submissions to answer the NEW RFP questions
     - Don't say "No specific answer found" if there is ANY relevant content in the previous submissions
 
@@ -1052,6 +1055,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
         print(f"DEBUG: Sending to AI - existing_summary length: {len(existing_summary)}")
         print(f"DEBUG: Sending to AI - new_content length: {len(new_content)}")
         print(f"DEBUG: First 200 chars of existing_summary: {existing_summary[:200]}...")
+        print(f"DEBUG: First 200 chars of new_content: {new_content[:200]}...")
         
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Changed from gpt-4 to gpt-3.5-turbo for better compatibility
