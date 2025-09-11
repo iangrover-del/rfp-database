@@ -970,6 +970,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     # Add a critical note about content requirements
     existing_summary += "🚨 CRITICAL INSTRUCTION: You MUST use the ACTUAL content from the submissions above. Do NOT provide generic suggestions. If there is ANY content in the submissions above that could be relevant to a question, use it. Even if it's not a perfect match, use the best available content. Only provide generic suggestions if there is absolutely NO content in the submissions above.\n\n"
     existing_summary += "🔥 ULTIMATE RULE: If you see ANY text in the submissions above that could answer a question, use that EXACT text. Do NOT paraphrase, do NOT summarize, do NOT create placeholder text. Use the ACTUAL words from the submissions.\n\n"
+    existing_summary += "⚠️ IMPORTANT: The submissions above contain question-answer pairs with actual answers. You MUST use these answers when they are relevant to the new RFP questions. Do NOT say 'No specific answer found' if there is relevant content in the submissions above.\n\n"
     
     # Debug: Add information about what content is available
     existing_summary += f"DEBUG INFO: Total submissions available: {len(existing_submissions)}, Corrected answers: {len(corrected_answers) if corrected_answers else 0}\n"
@@ -1010,6 +1011,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     # Debug: Show what we're sending to the AI
     print(f"DEBUG: Sending prompt to AI with {len(existing_summary)} characters of context")
     print(f"DEBUG: New content length: {len(new_content)}")
+    print(f"DEBUG: Existing summary preview: {existing_summary[:500]}...")
     
     prompt = f"""
     You are an expert RFP analyst helping to fill out a new RFP based on previous submissions. Your job is to find the BEST matching answers for each question in the new RFP.
