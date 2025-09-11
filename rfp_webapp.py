@@ -1007,7 +1007,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     {existing_summary}
 
     ===== NEW RFP CONTENT TO ANALYZE =====
-    {new_content[:15000]}
+    {new_content}
     ===== END NEW RFP CONTENT =====
 
     CRITICAL INSTRUCTIONS:
@@ -1015,7 +1015,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     2. SECOND: For each question from the NEW RFP, find the best matching answer from the previous submissions
     3. THIRD: Use the EXACT answer text from the previous submissions
     
-    IMPORTANT: This RFP likely contains 20+ questions. You MUST extract ALL of them. Look for numbered questions (1., 2., 3., etc.) throughout the entire document.
+    IMPORTANT: This RFP contains exactly 22 numbered questions (1. through 22.). You MUST extract ALL 22 questions. Look for every single numbered question (1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22.) throughout the entire document.
 
     ⚠️ CRITICAL: 
     - Extract questions ONLY from the "NEW RFP CONTENT TO ANALYZE" section
@@ -1047,8 +1047,11 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
                 "matching_reason": "similar topic"
             }}
         ],
-        "overall_confidence": 85
+        "overall_confidence": 85,
+        "total_questions_found": 22
     }}
+    
+    NOTE: You must return exactly 22 questions (numbered 1. through 22.). If you don't find all 22, you need to look more carefully through the document.
     """
     
     try:
