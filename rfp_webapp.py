@@ -401,11 +401,11 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
             for page_num in range(total_pages):
                 try:
                     page = pdf_reader.pages[page_num]
-                    page_text = page.extract_text()
+                page_text = page.extract_text()
                     print(f"DEBUG: Page {page_num + 1} extracted {len(page_text)} characters")
-                    if page_text.strip():  # Only add non-empty pages
-                        text += f"\n--- PAGE {page_num + 1} ---\n"
-                        text += page_text + "\n"
+                if page_text.strip():  # Only add non-empty pages
+                    text += f"\n--- PAGE {page_num + 1} ---\n"
+                    text += page_text + "\n"
                     else:
                         print(f"DEBUG: Page {page_num + 1} is empty")
                 except Exception as e:
@@ -1037,7 +1037,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     {existing_summary}
 
     ===== NEW RFP CONTENT TO ANALYZE =====
-    {new_content[:12000]}
+    {new_content[:15000]}
     ===== END NEW RFP CONTENT =====
 
     CRITICAL INSTRUCTIONS:
@@ -1050,7 +1050,9 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     - DO NOT extract questions from the "PREVIOUS SUBMISSIONS" section
     - The "PREVIOUS SUBMISSIONS" section contains ANSWERS, not questions to extract
     - Look for questions throughout the ENTIRE document, not just the beginning
-    - Questions may be numbered, bulleted, or in various formats
+    - Questions may be numbered (1., 2., 3.), bulleted, or in various formats
+    - Look for questions that start with "Please provide", "What", "How", "Describe", etc.
+    - Look for questions that end with question marks (?)
     - Use answers from the previous submissions to answer the NEW RFP questions
     - Don't say "No specific answer found" if there is ANY relevant content in the previous submissions
 
