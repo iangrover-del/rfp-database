@@ -1011,11 +1011,17 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     ===== END NEW RFP CONTENT =====
 
     CRITICAL INSTRUCTIONS:
-    1. FIRST: Extract ALL numbered questions from the "NEW RFP CONTENT TO ANALYZE" section above
+    1. FIRST: Scan the "NEW RFP CONTENT TO ANALYZE" section and find ALL numbered questions
     2. SECOND: For each question, find the best matching answer from the previous submissions
     3. THIRD: Use the EXACT answer text from the previous submissions
 
-    ⚠️ EXTRACT ALL NUMBERED QUESTIONS: Look for every single numbered question (1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22., etc.) throughout the entire document. Extract EVERY numbered question you find.
+    ⚠️ SYSTEMATIC QUESTION EXTRACTION:
+    - Look for any line that starts with a number followed by a period (1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., etc.)
+    - Look for any line that starts with a number followed by a space and period (1 . 2 . 3 . etc.)
+    - Look for any line that starts with a number in parentheses (1) 2) 3) etc.)
+    - Look for any line that starts with a number followed by a colon (1: 2: 3: etc.)
+    - Extract the complete question text that follows each number
+    - Be systematic: go through the document line by line looking for these patterns
 
     ⚠️ ANSWER MATCHING: Be FLEXIBLE with matching - if the topic is even remotely related, use the answer. NEVER say "No specific answer found" - always find the most relevant answer from the submissions.
 
