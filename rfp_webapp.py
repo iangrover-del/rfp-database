@@ -690,6 +690,8 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
             "pages_analyzed": "list of page numbers analyzed (for PDFs)"
         }}
         
+        CRITICAL: Only include the EXACT question text as written in the document. Do NOT include index numbers, ranges, or placeholder text. Each item in "all_questions_found" must be the complete, exact question text.
+        
         Document chunk {i+1} of {len(chunks)}:
         {chunk}
         """
@@ -745,7 +747,10 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
                 if "all_questions_found" in chunk_data:
                     chunk_questions = chunk_data["all_questions_found"]
                     print(f"DEBUG: Chunk {i+1} found {len(chunk_questions)} questions")
-                    all_questions.extend(chunk_questions)
+                    # Filter out index-only entries and keep only actual question text
+                    actual_questions = [q for q in chunk_questions if isinstance(q, str) and not q.startswith('[') and not q.endswith(']')]
+                    all_questions.extend(actual_questions)
+                    print(f"DEBUG: Chunk {i+1} actual questions: {len(actual_questions)}")
                 
                 # Track sheets and pages analyzed
                 if "sheets_analyzed" in chunk_data:
