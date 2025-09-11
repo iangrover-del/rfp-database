@@ -901,8 +901,17 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
             if submission[4]:  # extracted_data or extracted_answers
                 try:
                     data = json.loads(submission[4])
-                    # Check if this is question-only data or has answers too
-                    if 'all_questions_found' in data:
+                    # Check for new question-answer format
+                    if 'question_answer_pairs' in data:
+                        pairs = data['question_answer_pairs']
+                        existing_summary += f"Question-answer pairs found: {len(pairs)}\n"
+                        for i, pair in enumerate(pairs[:3]):  # Show first 3 pairs
+                            if isinstance(pair, dict):
+                                existing_summary += f"Q{i+1}: {pair.get('question', 'N/A')[:100]}...\n"
+                                existing_summary += f"A{i+1}: {pair.get('answer', 'N/A')[:200]}...\n"
+                        if len(pairs) > 3:
+                            existing_summary += f"... and {len(pairs) - 3} more question-answer pairs\n"
+                    elif 'all_questions_found' in data:
                         existing_summary += f"Questions found: {len(data['all_questions_found'])}\n"
                         existing_summary += f"First 5 questions: {data['all_questions_found'][:5]}\n"
                         existing_summary += "NOTE: This appears to be question-only data. We need the actual RFP responses/answers.\n"
@@ -1584,7 +1593,21 @@ def show_process_page(client):
                                 try:
                                     data = json.loads(sub[4])
                                     st.write(f"**Question count:** {data.get('question_count', 'Unknown')}")
-                                    if 'all_questions_found' in data:
+                                    
+                                    # Check for new question-answer format
+                                    if 'question_answer_pairs' in data:
+                                        pairs = data['question_answer_pairs']
+                                        st.write(f"**Total question-answer pairs found:** {len(pairs)}")
+                                        st.write("**First 3 question-answer pairs:**")
+                                        for j, pair in enumerate(pairs[:3]):
+                                            if isinstance(pair, dict):
+                                                st.write(f"{j+1}. **Q:** {pair.get('question', 'N/A')}")
+                                                st.write(f"   **A:** {pair.get('answer', 'N/A')}")
+                                            else:
+                                                st.write(f"{j+1}. {pair}")
+                                        if len(pairs) > 3:
+                                            st.write(f"... and {len(pairs) - 3} more pairs")
+                                    elif 'all_questions_found' in data:
                                         questions = data['all_questions_found']
                                         st.write(f"**Total questions found:** {len(questions)}")
                                         st.write("**First 5 questions:**")
