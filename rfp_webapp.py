@@ -859,6 +859,98 @@ def extract_numbered_questions(content: str) -> List[str]:
     
     return questions
 
+def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
+    """Find matching answers using simple keyword matching instead of AI"""
+    
+    if not existing_submissions:
+        return {
+            "matches": [], 
+            "confidence": 0,
+            "error": "No historical RFPs found in database. Please upload some historical RFPs first to build a knowledge base.",
+            "suggestion": "Go to 'Upload Historical RFPs' to add your past successful proposals."
+        }
+    
+    matches = []
+    
+    # Extract all question-answer pairs from historical submissions
+    all_qa_pairs = []
+    for submission in existing_submissions:
+        if len(submission) > 4 and submission[4]:
+            try:
+                data = json.loads(submission[4])
+                if 'question_answer_pairs' in data:
+                    for pair in data['question_answer_pairs']:
+                        if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
+                            all_qa_pairs.append({
+                                'question': pair['question'],
+                                'answer': pair['answer'],
+                                'source': submission[1],
+                                'status': submission[5] if len(submission) > 5 else 'unknown'
+                            })
+            except:
+                continue
+    
+    print(f"DEBUG: Found {len(all_qa_pairs)} question-answer pairs from historical RFPs")
+    
+    # For each new question, find the best matching answer
+    for question in questions[:10]:  # Limit to first 10
+        best_match = None
+        best_score = 0
+        
+        # Simple keyword matching
+        question_lower = question.lower()
+        question_keywords = set(question_lower.split())
+        
+        for qa_pair in all_qa_pairs:
+            # Calculate simple similarity score
+            answer_lower = qa_pair['answer'].lower()
+            answer_keywords = set(answer_lower.split())
+            
+            # Count common keywords
+            common_keywords = question_keywords.intersection(answer_keywords)
+            score = len(common_keywords)
+            
+            # Boost score for specific matches
+            if any(word in answer_lower for word in ['network', 'provider', 'coach', 'therapist'] if word in question_lower):
+                score += 2
+            if any(word in answer_lower for word in ['timeline', 'implementation', 'plan'] if word in question_lower):
+                score += 2
+            if any(word in answer_lower for word in ['eligibility', 'dependent', 'coverage'] if word in question_lower):
+                score += 2
+            
+            if score > best_score:
+                best_score = score
+                best_match = qa_pair
+        
+        if best_match and best_score > 0:
+            matches.append({
+                "question": question,
+                "suggested_answer": best_match['answer'],
+                "confidence": min(95, 60 + (best_score * 5)),
+                "source_rfp": best_match['source'],
+                "category": "matched",
+                "source_status": best_match['status'],
+                "matching_reason": f"Keyword match (score: {best_score})"
+            })
+        else:
+            # Fallback to generic answer if no match found
+            matches.append({
+                "question": question,
+                "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer.",
+                "confidence": 10,
+                "source_rfp": "None",
+                "category": "no_match",
+                "source_status": "unknown",
+                "matching_reason": "No keyword match found"
+            })
+    
+    return {
+        "matches": matches,
+        "overall_confidence": sum(m['confidence'] for m in matches) // len(matches) if matches else 0,
+        "total_questions_found": len(questions),
+        "questions_answered": len(matches)
+    }
+
 def find_matching_answers_with_questions(questions: List[str], existing_submissions: List, client) -> Dict[str, Any]:
     """Find matching answers for pre-processed questions"""
     
@@ -1724,8 +1816,8 @@ def show_process_page(client):
                         except:
                             st.write(f"  - Error parsing data")
                 
-                # Find matching answers using pre-processed questions
-                matches = find_matching_answers_with_questions(questions, existing_submissions, client)
+                # Find matching answers using simple keyword matching
+                matches = find_matching_answers_simple(questions, existing_submissions)
                 
                 st.success("✅ RFP processed successfully!")
                 
