@@ -882,6 +882,17 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 # Try different data formats
                 print(f"DEBUG: Processing {submission[1]}, data keys: {list(data.keys())}")
                 
+                # Let's see the raw data structure
+                st.write(f"**DEBUG: {submission[1]} data keys:** {list(data.keys())}")
+                if 'question_answer_pairs' in data:
+                    st.write(f"**DEBUG: Found {len(data['question_answer_pairs'])} question_answer_pairs**")
+                elif 'all_questions_found' in data:
+                    st.write(f"**DEBUG: Found {len(data['all_questions_found'])} all_questions_found**")
+                else:
+                    st.write(f"**DEBUG: Unknown format, showing first few keys:**")
+                    for key, value in list(data.items())[:3]:
+                        st.write(f"  - {key}: {type(value)} with {len(value) if isinstance(value, (list, dict)) else 'N/A'} items")
+                
                 if 'question_answer_pairs' in data:
                     # Format 1: question_answer_pairs
                     print(f"DEBUG: Found question_answer_pairs in {submission[1]}, count: {len(data['question_answer_pairs'])}")
