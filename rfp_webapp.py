@@ -895,8 +895,8 @@ def find_matching_answers_with_questions(questions: List[str], existing_submissi
             except:
                 print(f"DEBUG: Could not parse data")
     
-    # Add won submissions (highest priority - 95% confidence)
-    won_submissions = [s for s in existing_submissions if len(s) > 5 and s[5] == 'won']
+    # Add won submissions (highest priority - 95% confidence) - limit to first 2
+    won_submissions = [s for s in existing_submissions if len(s) > 5 and s[5] == 'won'][:2]
     if won_submissions:
         existing_summary += "WON RFP SUBMISSIONS (Highest Priority - 95% Confidence - Use these first):\n"
         for i, submission in enumerate(won_submissions):
@@ -909,15 +909,15 @@ def find_matching_answers_with_questions(questions: List[str], existing_submissi
                     if 'question_answer_pairs' in data:
                         pairs = data['question_answer_pairs']
                         existing_summary += f"Question-answer pairs found: {len(pairs)}\n"
-                        for i, pair in enumerate(pairs[:3]):  # Show first 3 pairs
+                        for i, pair in enumerate(pairs[:2]):  # Show first 2 pairs only
                             if isinstance(pair, dict):
-                                existing_summary += f"Q{i+1}: {pair.get('question', 'N/A')[:100]}...\n"
-                                existing_summary += f"A{i+1}: {pair.get('answer', 'N/A')[:200]}...\n"
-                        if len(pairs) > 3:
-                            existing_summary += f"... and {len(pairs) - 3} more question-answer pairs\n"
+                                existing_summary += f"Q{i+1}: {pair.get('question', 'N/A')[:80]}...\n"
+                                existing_summary += f"A{i+1}: {pair.get('answer', 'N/A')[:150]}...\n"
+                        if len(pairs) > 2:
+                            existing_summary += f"... and {len(pairs) - 2} more question-answer pairs\n"
                     elif 'all_questions_found' in data:
                         existing_summary += f"Questions found: {len(data['all_questions_found'])}\n"
-                        existing_summary += f"First 5 questions: {data['all_questions_found'][:5]}\n"
+                        existing_summary += f"First 3 questions: {data['all_questions_found'][:3]}\n"
                         existing_summary += "NOTE: This appears to be question-only data. We need the actual RFP responses/answers.\n"
                     else:
                         # This might have actual content
@@ -927,8 +927,8 @@ def find_matching_answers_with_questions(questions: List[str], existing_submissi
             existing_summary += "\n---\n"
         existing_summary += "\n"
     
-    # Add unknown/pending submissions (medium priority - 80% confidence)
-    unknown_submissions = [s for s in existing_submissions if len(s) <= 5 or s[5] in ['unknown', 'pending']]
+    # Add unknown/pending submissions (medium priority - 80% confidence) - limit to first 2
+    unknown_submissions = [s for s in existing_submissions if len(s) <= 5 or s[5] in ['unknown', 'pending']][:2]
     if unknown_submissions:
         existing_summary += "UNKNOWN/PENDING RFP SUBMISSIONS (Medium Priority - 80% Confidence - Include these):\n"
         for i, submission in enumerate(unknown_submissions):
@@ -941,15 +941,15 @@ def find_matching_answers_with_questions(questions: List[str], existing_submissi
                     if 'question_answer_pairs' in data:
                         pairs = data['question_answer_pairs']
                         existing_summary += f"Question-answer pairs found: {len(pairs)}\n"
-                        for i, pair in enumerate(pairs[:3]):  # Show first 3 pairs
+                        for i, pair in enumerate(pairs[:2]):  # Show first 2 pairs only
                             if isinstance(pair, dict):
-                                existing_summary += f"Q{i+1}: {pair.get('question', 'N/A')[:100]}...\n"
-                                existing_summary += f"A{i+1}: {pair.get('answer', 'N/A')[:200]}...\n"
-                        if len(pairs) > 3:
-                            existing_summary += f"... and {len(pairs) - 3} more question-answer pairs\n"
+                                existing_summary += f"Q{i+1}: {pair.get('question', 'N/A')[:80]}...\n"
+                                existing_summary += f"A{i+1}: {pair.get('answer', 'N/A')[:150]}...\n"
+                        if len(pairs) > 2:
+                            existing_summary += f"... and {len(pairs) - 2} more question-answer pairs\n"
                     elif 'all_questions_found' in data:
                         existing_summary += f"Questions found: {len(data['all_questions_found'])}\n"
-                        existing_summary += f"First 5 questions: {data['all_questions_found'][:5]}\n"
+                        existing_summary += f"First 3 questions: {data['all_questions_found'][:3]}\n"
                         existing_summary += "NOTE: This appears to be question-only data. We need the actual RFP responses/answers.\n"
                     else:
                         # This might have actual content
@@ -1010,6 +1010,8 @@ def find_matching_answers_with_questions(questions: List[str], existing_submissi
         print(f"DEBUG: Sending to AI - existing_summary length: {len(existing_summary)}")
         print(f"DEBUG: Sending to AI - questions count: {len(questions)}")
         print(f"DEBUG: First 200 chars of existing_summary: {existing_summary[:200]}...")
+        print(f"DEBUG: Total prompt length: {len(prompt)}")
+        print(f"DEBUG: First 500 chars of prompt: {prompt[:500]}...")
         
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
