@@ -629,18 +629,18 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     
     for i, chunk in enumerate(chunks):
         prompt = f"""
-        You are an expert RFP question extraction specialist. Your task is to find and extract EVERY SINGLE QUESTION, REQUEST, or INFORMATION REQUIREMENT from this RFP document.
+        You are an expert RFP response extraction specialist. Your task is to extract BOTH questions and their corresponding answers from this RFP response document.
         
         CRITICAL INSTRUCTIONS:
-        1. Read through the ENTIRE document carefully, line by line
-        2. Extract the EXACT wording of every question, request, or information requirement
-        3. Include questions that end with "?" AND questions that don't end with "?"
-        4. Include numbered items, bullet points, table headers, and any text that asks for information
-        5. Do NOT summarize, paraphrase, or group similar questions
-        6. List EVERY question separately, even if they seem similar
-        7. Include questions from tables, forms, and structured sections
-        8. Look for implicit questions (text that requests information even without "?")
-        9. Be EXTREMELY thorough - extract everything that could be considered a question or request
+        1. This document contains RFP RESPONSES (answers to questions), not just questions
+        2. Extract EVERY question-answer pair from the document
+        3. For each question, find the corresponding answer that was provided
+        4. Include questions that end with "?" AND questions that don't end with "?"
+        5. Look for question-answer patterns in tables, forms, and structured sections
+        6. Extract questions from headers, bullet points, and numbered items
+        7. Find the answers that correspond to each question
+        8. If a question doesn't have a clear answer, note that
+        9. Be EXTREMELY thorough - extract everything that could be considered a question-answer pair
         10. Look for questions in ALL formats: paragraphs, lists, tables, forms, checkboxes
         11. Extract questions that are embedded in longer text
         12. Look for questions that start with action words like "Describe", "Explain", "Provide", "List", "Detail"
@@ -704,17 +704,22 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         
         RESPONSE FORMAT (JSON only):
         {{
-            "all_questions_found": [
-                "Exact question 1 as written in document",
-                "Exact question 2 as written in document",
-                "Exact question 3 as written in document"
+            "question_answer_pairs": [
+                {{
+                    "question": "Exact question 1 as written in document",
+                    "answer": "Exact answer provided for question 1"
+                }},
+                {{
+                    "question": "Exact question 2 as written in document", 
+                    "answer": "Exact answer provided for question 2"
+                }}
             ],
-            "question_count": "total number of questions found in this chunk",
+            "question_count": "total number of question-answer pairs found in this chunk",
             "sheets_analyzed": "list of sheet names analyzed (for Excel files)",
             "pages_analyzed": "list of page numbers analyzed (for PDFs)"
         }}
         
-        CRITICAL: Only include the EXACT question text as written in the document. Do NOT include index numbers, ranges, or placeholder text. Each item in "all_questions_found" must be the complete, exact question text.
+        CRITICAL: Extract BOTH the question AND the corresponding answer. If no answer is found for a question, use "No answer provided" as the answer. Do NOT include index numbers, ranges, or placeholder text.
         
         Document chunk {i+1} of {len(chunks)}:
         {chunk}
@@ -767,10 +772,22 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
                 # Parse the JSON
                 chunk_data = json.loads(json_str)
                 
-                # Extract questions from this chunk
-                if "all_questions_found" in chunk_data:
+                # Extract question-answer pairs from this chunk
+                if "question_answer_pairs" in chunk_data:
+                    chunk_pairs = chunk_data["question_answer_pairs"]
+                    print(f"DEBUG: Chunk {i+1} found {len(chunk_pairs)} question-answer pairs")
+                    # Store both questions and answers
+                    for pair in chunk_pairs:
+                        if isinstance(pair, dict) and "question" in pair and "answer" in pair:
+                            all_questions.append({
+                                "question": pair["question"],
+                                "answer": pair["answer"]
+                            })
+                    print(f"DEBUG: Chunk {i+1} processed {len(chunk_pairs)} pairs")
+                elif "all_questions_found" in chunk_data:
+                    # Fallback for old format
                     chunk_questions = chunk_data["all_questions_found"]
-                    print(f"DEBUG: Chunk {i+1} found {len(chunk_questions)} questions")
+                    print(f"DEBUG: Chunk {i+1} found {len(chunk_questions)} questions (old format)")
                     # Filter out index-only entries and keep only actual question text
                     actual_questions = [q for q in chunk_questions if isinstance(q, str) and not q.startswith('[') and not q.endswith(']')]
                     all_questions.extend(actual_questions)
