@@ -408,6 +408,13 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
             text += f"Content preview (first 1000 chars): {text[:1000]}...\n"
             text += f"Content preview (last 1000 chars): ...{text[-1000:]}\n"
             
+            # Debug: Show content from each page
+            for page_num, page in enumerate(pdf_reader.pages):
+                page_text = page.extract_text()
+                text += f"\n--- PAGE {page_num + 1} CONTENT ---\n"
+                text += f"Page {page_num + 1} length: {len(page_text)} characters\n"
+                text += f"Page {page_num + 1} preview: {page_text[:500]}...\n"
+            
             return text
         elif file_extension == 'docx':
             doc = Document(io.BytesIO(file_content))
