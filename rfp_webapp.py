@@ -905,8 +905,23 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                                 'status': submission[5] if len(submission) > 5 else 'unknown'
                             })
                 elif 'all_questions_found' in data:
-                    # Format 2: all_questions_found (questions only, no answers)
-                    print(f"DEBUG: Found questions-only data in {submission[1]}, skipping...")
+                    # Format 2: all_questions_found (might actually contain Q&A pairs)
+                    print(f"DEBUG: Found all_questions_found in {submission[1]}, checking for Q&A pairs...")
+                    questions_found = data['all_questions_found']
+                    if isinstance(questions_found, list) and len(questions_found) > 0:
+                        # Check if the first item is a dict with question and answer
+                        if isinstance(questions_found[0], dict) and 'question' in questions_found[0] and 'answer' in questions_found[0]:
+                            print(f"DEBUG: Found Q&A pairs in all_questions_found! Count: {len(questions_found)}")
+                            for pair in questions_found:
+                                if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
+                                    all_qa_pairs.append({
+                                        'question': pair['question'],
+                                        'answer': pair['answer'],
+                                        'source': submission[1],
+                                        'status': submission[5] if len(submission) > 5 else 'unknown'
+                                    })
+                        else:
+                            print(f"DEBUG: all_questions_found contains questions only, skipping...")
                 else:
                     # Format 3: Try to extract from raw content
                     print(f"DEBUG: Unknown data format in {submission[1]}, keys: {list(data.keys())}")
