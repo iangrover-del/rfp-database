@@ -830,6 +830,35 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     
     return final_result
 
+def extract_numbered_questions(content: str) -> List[str]:
+    """Extract all numbered questions from content"""
+    import re
+    
+    questions = []
+    
+    # Look for patterns like "1.", "2.", "3.", etc.
+    pattern1 = r'^(\d+)\.\s+(.+)$'
+    matches1 = re.findall(pattern1, content, re.MULTILINE)
+    for num, question in matches1:
+        questions.append(f"{num}. {question.strip()}")
+    
+    # Look for patterns like "1)", "2)", "3)", etc.
+    pattern2 = r'^(\d+)\)\s+(.+)$'
+    matches2 = re.findall(pattern2, content, re.MULTILINE)
+    for num, question in matches2:
+        questions.append(f"{num}) {question.strip()}")
+    
+    # Look for patterns like "1:", "2:", "3:", etc.
+    pattern3 = r'^(\d+):\s+(.+)$'
+    matches3 = re.findall(pattern3, content, re.MULTILINE)
+    for num, question in matches3:
+        questions.append(f"{num}: {question.strip()}")
+    
+    # Sort by number
+    questions.sort(key=lambda x: int(re.search(r'^(\d+)', x).group(1)))
+    
+    return questions
+
 def find_matching_answers(new_content: str, existing_submissions: List, client) -> Dict[str, Any]:
     """Find matching answers for new RFP"""
     
@@ -1512,6 +1541,15 @@ def show_process_page(client):
                 st.write(f"Content length: {len(content)} characters")
                 st.write(f"First 1000 characters: {content[:1000]}")
                 st.write(f"Last 1000 characters: {content[-1000:]}")
+                
+                # Pre-process to extract numbered questions
+                st.write("🔍 **Debug: Pre-processed Questions**")
+                questions = extract_numbered_questions(content)
+                st.write(f"Found {len(questions)} numbered questions:")
+                for i, q in enumerate(questions[:10]):  # Show first 10
+                    st.write(f"{i+1}. {q}")
+                if len(questions) > 10:
+                    st.write(f"... and {len(questions) - 10} more questions")
                 
                 # Debug: Show what historical data we have
                 st.write("🔍 **Debug: Historical RFP Data**")
