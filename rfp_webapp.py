@@ -878,7 +878,10 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         if len(submission) > 4 and submission[4]:
             try:
                 data = json.loads(submission[4])
+                
+                # Try different data formats
                 if 'question_answer_pairs' in data:
+                    # Format 1: question_answer_pairs
                     for pair in data['question_answer_pairs']:
                         if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
                             all_qa_pairs.append({
@@ -887,7 +890,15 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                                 'source': submission[1],
                                 'status': submission[5] if len(submission) > 5 else 'unknown'
                             })
-            except:
+                elif 'all_questions_found' in data:
+                    # Format 2: all_questions_found (questions only, no answers)
+                    print(f"DEBUG: Found questions-only data in {submission[1]}, skipping...")
+                else:
+                    # Format 3: Try to extract from raw content
+                    print(f"DEBUG: Unknown data format in {submission[1]}, keys: {list(data.keys())}")
+                    
+            except Exception as e:
+                print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
                 continue
     
     print(f"DEBUG: Found {len(all_qa_pairs)} question-answer pairs from historical RFPs")
