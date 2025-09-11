@@ -605,9 +605,17 @@ def extract_csv_content(file_content: bytes) -> str:
 def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     """Extract structured data from RFP using AI"""
     
-    # Use a more aggressive approach - process the entire document at once
-    # but with a much more comprehensive question extraction strategy
-    chunks = [content]  # Process the entire document as one chunk
+    # Use smaller chunks to avoid token limit issues
+    # Process in smaller chunks with better overlap for comprehensive extraction
+    chunk_size = 8000  # Reduced from 12000 to avoid token limits
+    overlap = 2000     # Increased overlap for better question capture
+    
+    chunks = []
+    for i in range(0, len(content), chunk_size - overlap):
+        chunk = content[i:i+chunk_size]
+        chunks.append(chunk)
+        if i + chunk_size >= len(content):
+            break
     
     all_questions = []
     sheets_analyzed = set()
@@ -704,7 +712,7 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.1,
-                max_tokens=4000
+                max_tokens=3000  # Reduced to be more conservative with token limits
             )
             
             # Get the response content
