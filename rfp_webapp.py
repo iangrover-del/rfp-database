@@ -1020,13 +1020,26 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 score += 10
             if 'loa' in question_lower and ('loa' in answer_lower or 'leave of absence' in answer_lower):
                 score += 10
+            if 'fitness' in question_lower and 'duty' in question_lower and ('fitness' in answer_lower or 'duty' in answer_lower):
+                score += 15
+            if 'fitness-for-duty' in question_lower and ('fitness' in answer_lower or 'duty' in answer_lower):
+                score += 20
+            
+            # Penalize completely irrelevant answers
+            if 'fitness' in question_lower and 'duty' in question_lower:
+                # This is a fitness-for-duty question, penalize partnership/strategic answers
+                if any(word in answer_lower for word in ['partnership', 'strategic', 'alignment', 'communication', 'goals', 'responsibilities']):
+                    score -= 10
+                # Penalize generic network coverage answers
+                if 'network coverage system' in answer_lower:
+                    score -= 15
             
             if score > best_score:
                 best_score = score
                 best_match = qa_pair
                 print(f"DEBUG: New best match (score {score}): {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score > 2:  # Require minimum score of 3
+        if best_match and best_score > 5:  # Require minimum score of 6 for better quality
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
