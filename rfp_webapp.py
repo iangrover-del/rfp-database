@@ -859,8 +859,8 @@ def extract_numbered_questions(content: str) -> List[str]:
     
     return questions
 
-def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
-    """Find matching answers using simple keyword matching instead of AI"""
+def find_matching_answers_semantic(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
+    """Find matching answers using semantic similarity and intelligent matching"""
     
     if not existing_submissions:
         return {
@@ -964,30 +964,9 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         best_match = None
         best_score = 0
         
-        # More specific keyword matching
+        # Use semantic similarity matching
         question_lower = question.lower()
-        question_keywords = set(question_lower.split())
-        
-        # Define specific topic keywords for better matching
-        topic_keywords = {
-            'network': ['network', 'provider', 'coach', 'therapist', 'coverage'],
-            'timeline': ['timeline', 'implementation', 'plan', 'launch', 'deploy'],
-            'eligibility': ['eligibility', 'dependent', 'coverage', 'file', 'requirements'],
-            'demo': ['demo', 'sample', 'login', 'capabilities', 'show'],
-            'visit_limit': ['visit', 'limit', 'enrolled', 'medical', 'exhaust', 'session'],
-            'loa_cism': ['leave', 'absence', 'loa', 'cism', 'manager', 'referral', 'process'],
-            'fitness_duty': ['fitness', 'duty', 'standard', 'process', 'delivery', 'time'],
-            'table': ['table', 'complete', 'based', 'current', 'network'],
-            'geo_access': ['geo', 'access', 'census', 'pricing', 'document'],
-            'wait_times': ['wait', 'time', 'appointment', 'average']
-        }
-        
-        # Determine the main topic of the question
-        question_topic = None
-        for topic, keywords in topic_keywords.items():
-            if any(keyword in question_lower for keyword in keywords):
-                question_topic = topic
-                break
+        question_type = classify_question_type(question_lower)
         
         for qa_pair in all_qa_pairs:
             # Skip if we've already used this answer
@@ -995,51 +974,15 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             if answer_hash in used_answers:
                 continue
                 
-            # Calculate similarity score
-            answer_lower = qa_pair['answer'].lower()
-            answer_keywords = set(answer_lower.split())
-            
-            # Count common keywords
-            common_keywords = question_keywords.intersection(answer_keywords)
-            score = len(common_keywords)
-            
-            # Boost score for specific topic matches
-            if question_topic and question_topic in topic_keywords:
-                topic_words = topic_keywords[question_topic]
-                if any(word in answer_lower for word in topic_words):
-                    score += 5  # Higher boost for topic matches
-            
-            # Penalize generic network coverage answers for non-network questions
-            if question_topic and question_topic != 'network' and 'network coverage system' in answer_lower:
-                score -= 3
-            
-            # Boost for exact phrase matches
-            if 'visit limit' in question_lower and 'visit limit' in answer_lower:
-                score += 10
-            if 'implementation timeline' in question_lower and 'implementation' in answer_lower:
-                score += 10
-            if 'loa' in question_lower and ('loa' in answer_lower or 'leave of absence' in answer_lower):
-                score += 10
-            if 'fitness' in question_lower and 'duty' in question_lower and ('fitness' in answer_lower or 'duty' in answer_lower):
-                score += 15
-            if 'fitness-for-duty' in question_lower and ('fitness' in answer_lower or 'duty' in answer_lower):
-                score += 20
-            
-            # Penalize completely irrelevant answers
-            if 'fitness' in question_lower and 'duty' in question_lower:
-                # This is a fitness-for-duty question, penalize partnership/strategic answers
-                if any(word in answer_lower for word in ['partnership', 'strategic', 'alignment', 'communication', 'goals', 'responsibilities']):
-                    score -= 10
-                # Penalize generic network coverage answers
-                if 'network coverage system' in answer_lower:
-                    score -= 15
+            # Calculate semantic similarity score
+            score = calculate_semantic_score(question, qa_pair['question'], qa_pair['answer'], question_type)
             
             if score > best_score:
                 best_score = score
                 best_match = qa_pair
-                print(f"DEBUG: New best match (score {score}): {qa_pair['answer'][:100]}...")
+                print(f"DEBUG: New best match (score {score:.3f}): {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score > 5:  # Require minimum score of 6 for better quality
+        if best_match and best_score > 0.3:  # Semantic similarity threshold
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1047,11 +990,11 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             matches.append({
                 "question": question,
                 "suggested_answer": best_match['answer'],
-                "confidence": min(95, 60 + (best_score * 5)),
+                "confidence": min(95, int(best_score * 100)),
                 "source_rfp": best_match['source'],
                 "category": "matched",
                 "source_status": best_match['status'],
-                "matching_reason": f"Keyword match (score: {best_score})"
+                "matching_reason": f"Semantic match (score: {best_score:.3f})"
             })
         else:
             # Fallback to generic answer if no match found
@@ -1062,7 +1005,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 "source_rfp": "None",
                 "category": "no_match",
                 "source_status": "unknown",
-                "matching_reason": "No keyword match found"
+                "matching_reason": "No semantic match found"
             })
     
     return {
@@ -1076,6 +1019,104 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
         }
     }
+
+def classify_question_type(question_lower: str) -> str:
+    """Classify the type of question for better matching"""
+    if any(word in question_lower for word in ['network', 'provider', 'coach', 'therapist', 'coverage', 'table']):
+        return 'network'
+    elif any(word in question_lower for word in ['timeline', 'implementation', 'plan', 'launch', 'deploy']):
+        return 'timeline'
+    elif any(word in question_lower for word in ['eligibility', 'dependent', 'file', 'requirements']):
+        return 'eligibility'
+    elif any(word in question_lower for word in ['demo', 'sample', 'login', 'capabilities', 'show']):
+        return 'demo'
+    elif any(word in question_lower for word in ['visit', 'limit', 'enrolled', 'medical', 'exhaust', 'session']):
+        return 'visit_limit'
+    elif any(word in question_lower for word in ['leave', 'absence', 'loa', 'cism', 'manager', 'referral']):
+        return 'loa_cism'
+    elif any(word in question_lower for word in ['fitness', 'duty', 'standard', 'process', 'delivery']):
+        return 'fitness_duty'
+    elif any(word in question_lower for word in ['geo', 'access', 'census', 'pricing']):
+        return 'geo_access'
+    elif any(word in question_lower for word in ['wait', 'time', 'appointment', 'average']):
+        return 'wait_times'
+    else:
+        return 'general'
+
+def calculate_semantic_score(new_question: str, historical_question: str, historical_answer: str, question_type: str) -> float:
+    """Calculate semantic similarity score between new question and historical Q&A"""
+    new_q_lower = new_question.lower()
+    hist_q_lower = historical_question.lower()
+    hist_a_lower = historical_answer.lower()
+    
+    score = 0.0
+    
+    # 1. Direct question similarity (highest weight)
+    question_similarity = calculate_text_similarity(new_q_lower, hist_q_lower)
+    score += question_similarity * 0.6  # 60% weight on question similarity
+    
+    # 2. Answer relevance to question type
+    answer_relevance = calculate_answer_relevance(hist_a_lower, question_type)
+    score += answer_relevance * 0.4  # 40% weight on answer relevance
+    
+    # 3. Boost for exact phrase matches
+    if 'fitness-for-duty' in new_q_lower and ('fitness' in hist_a_lower or 'duty' in hist_a_lower):
+        score += 0.3
+    if 'visit limit' in new_q_lower and 'visit limit' in hist_a_lower:
+        score += 0.3
+    if 'implementation timeline' in new_q_lower and 'implementation' in hist_a_lower:
+        score += 0.3
+    if 'loa' in new_q_lower and ('loa' in hist_a_lower or 'leave of absence' in hist_a_lower):
+        score += 0.3
+    
+    # 4. Penalize irrelevant answers
+    if question_type == 'fitness_duty':
+        if any(word in hist_a_lower for word in ['partnership', 'strategic', 'alignment', 'communication']):
+            score -= 0.4
+    elif question_type == 'network':
+        if 'network coverage system' not in hist_a_lower and 'provider' not in hist_a_lower:
+            score -= 0.2
+    
+    return max(0.0, min(1.0, score))  # Clamp between 0 and 1
+
+def calculate_text_similarity(text1: str, text2: str) -> float:
+    """Calculate similarity between two texts using word overlap and semantic understanding"""
+    words1 = set(text1.split())
+    words2 = set(text2.split())
+    
+    if not words1 or not words2:
+        return 0.0
+    
+    # Basic word overlap
+    common_words = words1.intersection(words2)
+    overlap_score = len(common_words) / max(len(words1), len(words2))
+    
+    # Boost for important keywords
+    important_keywords = ['network', 'timeline', 'eligibility', 'demo', 'visit', 'limit', 'loa', 'fitness', 'duty', 'implementation', 'geo', 'access', 'wait', 'time']
+    important_matches = sum(1 for word in important_keywords if word in words1 and word in words2)
+    keyword_boost = important_matches * 0.1
+    
+    return min(1.0, overlap_score + keyword_boost)
+
+def calculate_answer_relevance(answer: str, question_type: str) -> float:
+    """Calculate how relevant an answer is to a specific question type"""
+    if question_type == 'network':
+        network_keywords = ['network', 'provider', 'coach', 'therapist', 'coverage', 'access']
+        return sum(0.2 for keyword in network_keywords if keyword in answer)
+    elif question_type == 'timeline':
+        timeline_keywords = ['timeline', 'implementation', 'plan', 'launch', 'deploy', 'schedule']
+        return sum(0.2 for keyword in timeline_keywords if keyword in answer)
+    elif question_type == 'eligibility':
+        eligibility_keywords = ['eligibility', 'dependent', 'file', 'requirements', 'coverage']
+        return sum(0.2 for keyword in eligibility_keywords if keyword in answer)
+    elif question_type == 'fitness_duty':
+        fitness_keywords = ['fitness', 'duty', 'standard', 'process', 'delivery', 'time']
+        return sum(0.2 for keyword in fitness_keywords if keyword in answer)
+    elif question_type == 'loa_cism':
+        loa_keywords = ['leave', 'absence', 'loa', 'cism', 'manager', 'referral', 'process']
+        return sum(0.2 for keyword in loa_keywords if keyword in answer)
+    else:
+        return 0.5  # Default relevance for general questions
 
 def find_matching_answers_with_questions(questions: List[str], existing_submissions: List, client) -> Dict[str, Any]:
     """Find matching answers for pre-processed questions"""
@@ -1942,12 +1983,12 @@ def show_process_page(client):
                         except:
                             st.write(f"  - Error parsing data")
                 
-                # Find matching answers using simple keyword matching
-                matches = find_matching_answers_simple(questions, existing_submissions)
+                # Find matching answers using semantic similarity
+                matches = find_matching_answers_semantic(questions, existing_submissions)
                 
-                # Show debug info from simple matching
+                # Show debug info from semantic matching
                 if "debug_info" in matches:
-                    st.write("🔍 **Debug: Simple Matching Results**")
+                    st.write("🔍 **Debug: Semantic Matching Results**")
                     st.write(f"Q&A pairs found: {matches['debug_info']['qa_pairs_found']}")
                     st.write(f"Submissions processed: {matches['debug_info']['submissions_processed']}")
                     if matches['debug_info']['first_qa_pair']:
