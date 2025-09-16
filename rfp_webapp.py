@@ -1000,14 +1000,21 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
         key_phrases = extract_key_phrases(question_lower)
         print(f"DEBUG: Question {i+1} key phrases: {key_phrases[:10]}...")  # Show first 10 phrases
         
-        # Limit the number of Q&A pairs we check to avoid performance issues
-        max_pairs_to_check = min(100, len(all_qa_pairs))  # Check max 100 pairs per question
-        
-        for qa_pair in all_qa_pairs[:max_pairs_to_check]:
+        # Search through ALL Q&A pairs but filter out obviously irrelevant ones
+        for qa_pair in all_qa_pairs:
             # Skip if we've already used this exact answer
             answer_hash = hash(qa_pair['answer'][:200])
             if answer_hash in used_answers:
                 print(f"DEBUG: Skipping already used answer: {qa_pair['answer'][:50]}...")
+                continue
+            
+            # Skip obviously irrelevant answers
+            answer_lower = qa_pair['answer'].lower()
+            if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
+                continue
+            
+            # Skip if answer is just a name/email (like "Matt Burton, General Counsel matt@joinmodernhealth.com")
+            if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
                 continue
             
             # 1. Try exact question matching first
@@ -1090,22 +1097,29 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
         # Give more weight to matches - even a few matches should give a decent score
         score = min(0.8, matches / max(3, len(key_phrases) * 0.3))  # More generous scoring
     
-    # Simple keyword matching - treat all questions equally
-    # Look for common words that should match, but require multiple matches for a good score
-    common_words = ['company', 'name', 'address', 'contact', 'website', 'eligibility', 'dependent', 
-                   'fitness', 'duty', 'leave', 'absence', 'network', 'provider', 'timeline', 
-                   'implementation', 'demo', 'sample', 'login', 'definition', 'requirements']
+    # More specific keyword matching based on question content
+    # Look for exact topic matches
+    if 'dependent' in new_q_lower and 'definition' in new_q_lower:
+        if 'dependent' in hist_q_lower and ('definition' in hist_q_lower or 'eligible' in hist_q_lower):
+            score += 0.4  # Strong boost for dependent definition questions
+        elif 'file' in hist_q_lower or 'eligibility' in hist_q_lower:
+            score -= 0.3  # Penalty for file/eligibility answers on dependent definition questions
     
-    matching_words = 0
-    for word in common_words:
-        if word in new_q_lower and word in hist_q_lower:
-            matching_words += 1
+    if 'eligibility' in new_q_lower and 'file' in new_q_lower:
+        if 'eligibility' in hist_q_lower and 'file' in hist_q_lower:
+            score += 0.4  # Strong boost for eligibility file questions
     
-    # Only boost if we have multiple matching words (more specific match)
-    if matching_words >= 2:
-        score += 0.2  # Boost for multiple matching words
-    elif matching_words == 1:
-        score += 0.05  # Small boost for single word match
+    if 'fitness' in new_q_lower and 'duty' in new_q_lower:
+        if 'fitness' in hist_q_lower and 'duty' in hist_q_lower:
+            score += 0.4  # Strong boost for fitness-for-duty questions
+    
+    if 'leave' in new_q_lower and 'absence' in new_q_lower:
+        if 'leave' in hist_q_lower and 'absence' in hist_q_lower:
+            score += 0.4  # Strong boost for LOA questions
+    
+    if 'implementation' in new_q_lower and 'timeline' in new_q_lower:
+        if 'implementation' in hist_q_lower and 'timeline' in hist_q_lower:
+            score += 0.4  # Strong boost for implementation timeline questions
     
     return min(1.0, score)
 
