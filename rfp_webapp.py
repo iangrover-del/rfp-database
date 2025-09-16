@@ -985,7 +985,8 @@ def is_table_question(question: str) -> bool:
         'table and provide',
         'table with',
         'table showing',
-        'table including'
+        'table including',
+        'complete the table below based on your current network'  # Specific Barclays table question
     ]
     
     return any(indicator in question_lower for indicator in table_indicators)
@@ -1040,7 +1041,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
     # For each new question, find the best matching answer
     used_answers = set()
     
-    for i, question in enumerate(questions[:10]):  # Limit to first 10
+    for i, question in enumerate(questions[:20]):  # Process more questions
         print(f"DEBUG: Processing question {i+1}: {question[:100]}...")
         best_match = None
         best_score = 0
@@ -1183,6 +1184,22 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
     if 'geo' in new_q_lower and 'access' in new_q_lower:
         if 'geo' in hist_q_lower and 'access' in hist_q_lower:
             score += 0.4  # Strong boost for geo access questions
+        elif 'parity' in hist_q_lower or 'global' in hist_q_lower:
+            score -= 0.3  # Penalty for wrong geo access answers
+    
+    # Sample login questions
+    if 'sample' in new_q_lower and 'login' in new_q_lower:
+        if 'sample' in hist_q_lower and 'login' in hist_q_lower:
+            score += 0.4  # Strong boost for sample login questions
+        elif 'pricing' in hist_q_lower or 'pepm' in hist_q_lower:
+            score -= 0.3  # Penalty for pricing answers on login questions
+    
+    # Visit limit questions
+    if 'visit' in new_q_lower and 'limit' in new_q_lower:
+        if 'visit' in hist_q_lower and 'limit' in hist_q_lower:
+            score += 0.4  # Strong boost for visit limit questions
+        elif 'digital' in hist_q_lower and 'platform' in hist_q_lower:
+            score -= 0.3  # Penalty for digital platform answers on visit limit questions
     
     return min(1.0, score)
 
