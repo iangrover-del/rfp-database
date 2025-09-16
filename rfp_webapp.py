@@ -1021,8 +1021,9 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 best_match = qa_pair
                 match_type = "direct"
                 print(f"DEBUG: Direct match (score {score:.3f}): {qa_pair['question'][:100]}...")
+                print(f"DEBUG: Answer preview: {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score > 0.1:  # Reasonable threshold for performance
+        if best_match and best_score > 0.3:  # Higher threshold for better quality matches
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1084,14 +1085,21 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
         score = matches / len(key_phrases)
     
     # Simple keyword matching - treat all questions equally
-    # Look for common words that should match
+    # Look for common words that should match, but require multiple matches for a good score
     common_words = ['company', 'name', 'address', 'contact', 'website', 'eligibility', 'dependent', 
                    'fitness', 'duty', 'leave', 'absence', 'network', 'provider', 'timeline', 
-                   'implementation', 'demo', 'sample', 'login']
+                   'implementation', 'demo', 'sample', 'login', 'definition', 'requirements']
     
+    matching_words = 0
     for word in common_words:
         if word in new_q_lower and word in hist_q_lower:
-            score += 0.1  # Small boost for each matching word
+            matching_words += 1
+    
+    # Only boost if we have multiple matching words (more specific match)
+    if matching_words >= 2:
+        score += 0.2  # Boost for multiple matching words
+    elif matching_words == 1:
+        score += 0.05  # Small boost for single word match
     
     return min(1.0, score)
 
