@@ -971,7 +971,10 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
         question_lower = question.lower()
         question_type = classify_question_type(question_lower)
         
-        for qa_pair in all_qa_pairs:
+        # Limit the number of Q&A pairs we check to avoid performance issues
+        max_pairs_to_check = min(100, len(all_qa_pairs))  # Check max 100 pairs per question
+        
+        for qa_pair in all_qa_pairs[:max_pairs_to_check]:
             # Skip if we've already used this answer
             answer_hash = hash(qa_pair['answer'][:200])
             if answer_hash in used_answers:
@@ -993,7 +996,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 match_type = "direct"
                 print(f"DEBUG: Direct match (score {score:.3f}): {qa_pair['question'][:100]}...")
         
-        if best_match and best_score > 0.05:  # Even lower threshold to get more matches
+        if best_match and best_score > 0.1:  # Reasonable threshold for performance
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
