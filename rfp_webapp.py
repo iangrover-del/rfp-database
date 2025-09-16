@@ -843,7 +843,9 @@ def extract_numbered_questions(content: str) -> List[str]:
         # Skip table questions from PDFs
         if is_table_question(question):
             continue
-        questions.append(f"{num}. {question.strip()}")
+        # Clean up random spaces in the question
+        cleaned_question = clean_question_text(question.strip())
+        questions.append(f"{num}. {cleaned_question}")
     
     # Look for patterns like "1)", "2)", "3)", etc.
     pattern2 = r'^(\d+)\)\s+(.+)$'
@@ -852,7 +854,9 @@ def extract_numbered_questions(content: str) -> List[str]:
         # Skip table questions from PDFs
         if is_table_question(question):
             continue
-        questions.append(f"{num}) {question.strip()}")
+        # Clean up random spaces in the question
+        cleaned_question = clean_question_text(question.strip())
+        questions.append(f"{num}) {cleaned_question}")
     
     # Look for patterns like "1:", "2:", "3:", etc.
     pattern3 = r'^(\d+):\s+(.+)$'
@@ -861,12 +865,27 @@ def extract_numbered_questions(content: str) -> List[str]:
         # Skip table questions from PDFs
         if is_table_question(question):
             continue
-        questions.append(f"{num}: {question.strip()}")
+        # Clean up random spaces in the question
+        cleaned_question = clean_question_text(question.strip())
+        questions.append(f"{num}: {cleaned_question}")
     
     # Sort by number
     questions.sort(key=lambda x: int(re.search(r'^(\d+)', x).group(1)))
     
     return questions
+
+def clean_question_text(text: str) -> str:
+    """Clean up random spaces and formatting issues in question text"""
+    # Fix common spacing issues
+    text = re.sub(r'\s+', ' ', text)  # Replace multiple spaces with single space
+    text = re.sub(r'\s+([,.!?;:])', r'\1', text)  # Remove spaces before punctuation
+    text = re.sub(r'([a-z])\s+([A-Z])', r'\1 \2', text)  # Fix word breaks like "e ligibility"
+    text = re.sub(r'([a-z])\s+([a-z])', r'\1\2', text)  # Fix broken words like "p rovide"
+    text = re.sub(r'([A-Z])\s+([a-z])', r'\1\2', text)  # Fix broken words like "F itness"
+    text = re.sub(r'([a-z])\s+-\s+([a-z])', r'\1-\2', text)  # Fix "for -duty" -> "for-duty"
+    text = re.sub(r'([a-z])\s+([a-z])\s+([a-z])', r'\1\2\3', text)  # Fix "absen ce" -> "absence"
+    
+    return text.strip()
 
 def is_table_question(question: str) -> bool:
     """Check if a question is asking for table completion (which we should skip for PDFs)"""
@@ -972,7 +991,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 match_type = "direct"
                 print(f"DEBUG: Direct match (score {score:.3f}): {qa_pair['question'][:100]}...")
         
-        if best_match and best_score > 0.1:  # Much lower threshold to get more matches
+        if best_match and best_score > 0.05:  # Even lower threshold to get more matches
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1056,6 +1075,14 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
         score += 0.4  # Contact questions
     if 'website' in new_q_lower and 'website' in hist_q_lower:
         score += 0.4  # Website questions
+    if 'eligibility' in new_q_lower and 'eligibility' in hist_q_lower:
+        score += 0.4  # Eligibility questions
+    if 'dependent' in new_q_lower and 'dependent' in hist_q_lower:
+        score += 0.4  # Dependent questions
+    if 'fitness' in new_q_lower and 'duty' in new_q_lower and ('fitness' in hist_q_lower or 'duty' in hist_q_lower):
+        score += 0.4  # Fitness-for-duty questions
+    if 'leave' in new_q_lower and 'absence' in new_q_lower and ('leave' in hist_q_lower or 'absence' in hist_q_lower):
+        score += 0.4  # LOA questions
     
     return min(1.0, score)
 
