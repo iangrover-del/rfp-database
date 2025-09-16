@@ -897,11 +897,20 @@ def clean_question_text(text: str) -> str:
     # Fix common spacing issues
     text = re.sub(r'\s+', ' ', text)  # Replace multiple spaces with single space
     text = re.sub(r'\s+([,.!?;:])', r'\1', text)  # Remove spaces before punctuation
-    text = re.sub(r'([a-z])\s+([A-Z])', r'\1 \2', text)  # Fix word breaks like "e ligibility"
-    text = re.sub(r'([a-z])\s+([a-z])', r'\1\2', text)  # Fix broken words like "p rovide"
-    text = re.sub(r'([A-Z])\s+([a-z])', r'\1\2', text)  # Fix broken words like "F itness"
-    text = re.sub(r'([a-z])\s+-\s+([a-z])', r'\1-\2', text)  # Fix "for -duty" -> "for-duty"
-    text = re.sub(r'([a-z])\s+([a-z])\s+([a-z])', r'\1\2\3', text)  # Fix "absen ce" -> "absence"
+    
+    # Fix broken words by adding spaces between lowercase letters that should be separate words
+    # This handles cases like "Pleasep rovideyourdefinitionofdependents"
+    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)  # Add space between lowercase and uppercase
+    text = re.sub(r'([a-z])([a-z])([A-Z])', r'\1\2 \3', text)  # Fix "provideyour" -> "provide your"
+    text = re.sub(r'([a-z])([a-z])([a-z])([A-Z])', r'\1\2\3 \4', text)  # Fix "definitionof" -> "definition of"
+    
+    # Fix specific common broken words
+    text = re.sub(r'Pleasep\s*rovide', 'Please provide', text, flags=re.IGNORECASE)
+    text = re.sub(r'definitionof', 'definition of', text, flags=re.IGNORECASE)
+    text = re.sub(r'eligiblefor', 'eligible for', text, flags=re.IGNORECASE)
+    text = re.sub(r'eligibility', 'eligibility', text, flags=re.IGNORECASE)
+    text = re.sub(r'F\s*itness\s*-\s*for\s*-\s*duty', 'Fitness-for-duty', text, flags=re.IGNORECASE)
+    text = re.sub(r'leave\s*of\s*absen\s*ce', 'leave of absence', text, flags=re.IGNORECASE)
     
     return text.strip()
 
@@ -1100,6 +1109,9 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
         score += 0.4  # Eligibility questions
     if 'dependent' in new_q_lower and 'dependent' in hist_q_lower:
         score += 0.4  # Dependent questions
+        # Penalize if it's about eligibility files when asking about dependent definitions
+        if 'definition' in new_q_lower and 'file' in hist_q_lower:
+            score -= 0.3  # Wrong type of answer
     if 'fitness' in new_q_lower and 'duty' in new_q_lower and ('fitness' in hist_q_lower or 'duty' in hist_q_lower):
         score += 0.4  # Fitness-for-duty questions
     if 'leave' in new_q_lower and 'absence' in new_q_lower and ('leave' in hist_q_lower or 'absence' in hist_q_lower):
@@ -1304,6 +1316,8 @@ def get_fallback_answer(question: str, question_type: str) -> str:
         return "Modern Health typically implements programs within 4-6 weeks. Please provide your specific implementation timeline and plan details."
     elif question_type == 'eligibility':
         return "Modern Health works with clients to determine eligibility requirements. Please provide your specific eligibility file requirements and dependent definitions."
+    elif 'dependent' in question.lower() and 'definition' in question.lower():
+        return "Modern Health follows the eligibility requirements of each of our clients. The Client has the ability to determine its definition of a dependent and eligibility rules and requirements. Adult dependents can register themselves in the Modern Health app or web platform, or by calling the Modern Health Helpline. Dependents under the age of 18 will need to be invited to register by the employee."
     elif question_type == 'demo':
         return "Modern Health can provide demo access and sample logins. Please contact your account manager to arrange a demonstration of our platform capabilities."
     elif question_type == 'visit_limit':
