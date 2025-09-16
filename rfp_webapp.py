@@ -831,7 +831,7 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     return final_result
 
 def extract_numbered_questions(content: str) -> List[str]:
-    """Extract all numbered questions from content"""
+    """Extract all numbered questions from content, filtering out table questions from PDFs"""
     import re
     
     questions = []
@@ -840,24 +840,56 @@ def extract_numbered_questions(content: str) -> List[str]:
     pattern1 = r'^(\d+)\.\s+(.+)$'
     matches1 = re.findall(pattern1, content, re.MULTILINE)
     for num, question in matches1:
+        # Skip table questions from PDFs
+        if is_table_question(question):
+            continue
         questions.append(f"{num}. {question.strip()}")
     
     # Look for patterns like "1)", "2)", "3)", etc.
     pattern2 = r'^(\d+)\)\s+(.+)$'
     matches2 = re.findall(pattern2, content, re.MULTILINE)
     for num, question in matches2:
+        # Skip table questions from PDFs
+        if is_table_question(question):
+            continue
         questions.append(f"{num}) {question.strip()}")
     
     # Look for patterns like "1:", "2:", "3:", etc.
     pattern3 = r'^(\d+):\s+(.+)$'
     matches3 = re.findall(pattern3, content, re.MULTILINE)
     for num, question in matches3:
+        # Skip table questions from PDFs
+        if is_table_question(question):
+            continue
         questions.append(f"{num}: {question.strip()}")
     
     # Sort by number
     questions.sort(key=lambda x: int(re.search(r'^(\d+)', x).group(1)))
     
     return questions
+
+def is_table_question(question: str) -> bool:
+    """Check if a question is asking for table completion (which we should skip for PDFs)"""
+    question_lower = question.lower()
+    
+    # Table-related keywords that indicate this is a table question
+    table_indicators = [
+        'complete the table',
+        'fill in the table',
+        'table below',
+        'table above',
+        'table on page',
+        'table in',
+        'complete table',
+        'fill table',
+        'table based on',
+        'table and provide',
+        'table with',
+        'table showing',
+        'table including'
+    ]
+    
+    return any(indicator in question_lower for indicator in table_indicators)
 
 def find_matching_answers_semantic(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
     """Find matching answers using semantic similarity and intelligent matching"""
@@ -982,7 +1014,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 best_match = qa_pair
                 print(f"DEBUG: New best match (score {score:.3f}): {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score > 0.2:  # Lower threshold to get more matches
+        if best_match and best_score > 0.4:  # Higher threshold for better quality matches
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1000,10 +1032,11 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 "matching_reason": f"Semantic match (score: {best_score:.3f})"
             })
         else:
-            # Fallback to generic answer if no match found
+            # Provide a more helpful fallback answer based on question type
+            fallback_answer = get_fallback_answer(question, question_type)
             matches.append({
                 "question": question,
-                "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer.",
+                "suggested_answer": fallback_answer,
                 "confidence": 10,
                 "source_rfp": "None",
                 "category": "no_match",
@@ -1183,6 +1216,29 @@ def calculate_text_similarity(text1: str, text2: str) -> float:
             keyword_boost += weight
     
     return min(1.0, overlap_score + keyword_boost)
+
+def get_fallback_answer(question: str, question_type: str) -> str:
+    """Provide a helpful fallback answer when no good match is found"""
+    if question_type == 'network':
+        return "Modern Health maintains a global network of licensed therapists, coaches, and mental health professionals. Please provide specific network details based on your current provider data."
+    elif question_type == 'timeline':
+        return "Modern Health typically implements programs within 4-6 weeks. Please provide your specific implementation timeline and plan details."
+    elif question_type == 'eligibility':
+        return "Modern Health works with clients to determine eligibility requirements. Please provide your specific eligibility file requirements and dependent definitions."
+    elif question_type == 'demo':
+        return "Modern Health can provide demo access and sample logins. Please contact your account manager to arrange a demonstration of our platform capabilities."
+    elif question_type == 'visit_limit':
+        return "Modern Health provides flexible visit limits and coverage options. Please provide specific details about visit limits and coverage for non-enrolled members."
+    elif question_type == 'fitness_duty':
+        return "Modern Health can provide information about fitness-for-duty processes and standards. Please provide specific details about your fitness-for-duty requirements and delivery times."
+    elif question_type == 'loa_cism':
+        return "Modern Health supports leave of absence processes and critical incident stress management. Please provide specific details about your LOA process flows and CISM requirements."
+    elif question_type == 'geo_access':
+        return "Modern Health provides global access to mental health services. Please provide specific geographic access requirements and census data details."
+    elif question_type == 'wait_times':
+        return "Modern Health provides rapid access to care with industry-leading wait times. Please provide specific wait time requirements and appointment scheduling details."
+    else:
+        return "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements."
 
 def clean_brand_names(text: str) -> str:
     """Remove competitor brand names from text"""
