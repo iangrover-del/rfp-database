@@ -892,7 +892,7 @@ def is_table_question(question: str) -> bool:
     return any(indicator in question_lower for indicator in table_indicators)
 
 def find_matching_answers_semantic(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
-    """Find matching answers using semantic similarity and intelligent matching"""
+    """Find matching answers using exact question matching first, then semantic similarity"""
     
     if not existing_submissions:
         return {
@@ -911,23 +911,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
             try:
                 data = json.loads(submission[4])
                 
-                # Try different data formats
-                print(f"DEBUG: Processing {submission[1]}, data keys: {list(data.keys())}")
-                
-                # Let's see the raw data structure
-                st.write(f"**DEBUG: {submission[1]} data keys:** {list(data.keys())}")
                 if 'question_answer_pairs' in data:
-                    st.write(f"**DEBUG: Found {len(data['question_answer_pairs'])} question_answer_pairs**")
-                elif 'all_questions_found' in data:
-                    st.write(f"**DEBUG: Found {len(data['all_questions_found'])} all_questions_found**")
-                else:
-                    st.write(f"**DEBUG: Unknown format, showing first few keys:**")
-                    for key, value in list(data.items())[:3]:
-                        st.write(f"  - {key}: {type(value)} with {len(value) if isinstance(value, (list, dict)) else 'N/A'} items")
-                
-                if 'question_answer_pairs' in data:
-                    # Format 1: question_answer_pairs
-                    print(f"DEBUG: Found question_answer_pairs in {submission[1]}, count: {len(data['question_answer_pairs'])}")
                     for pair in data['question_answer_pairs']:
                         if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
                             all_qa_pairs.append({
@@ -937,13 +921,9 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                                 'status': submission[5] if len(submission) > 5 else 'unknown'
                             })
                 elif 'all_questions_found' in data:
-                    # Format 2: all_questions_found (might actually contain Q&A pairs)
-                    print(f"DEBUG: Found all_questions_found in {submission[1]}, checking for Q&A pairs...")
                     questions_found = data['all_questions_found']
                     if isinstance(questions_found, list) and len(questions_found) > 0:
-                        # Check if the first item is a dict with question and answer
                         if isinstance(questions_found[0], dict) and 'question' in questions_found[0] and 'answer' in questions_found[0]:
-                            print(f"DEBUG: Found Q&A pairs in all_questions_found! Count: {len(questions_found)}")
                             for pair in questions_found:
                                 if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
                                     all_qa_pairs.append({
@@ -952,69 +932,47 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                                         'source': submission[1],
                                         'status': submission[5] if len(submission) > 5 else 'unknown'
                                     })
-                        else:
-                            print(f"DEBUG: all_questions_found contains questions only, skipping...")
-                else:
-                    # Format 3: Try to extract from raw content
-                    print(f"DEBUG: Unknown data format in {submission[1]}, keys: {list(data.keys())}")
-                    # Let's see what's actually in the data
-                    for key, value in data.items():
-                        if isinstance(value, list) and len(value) > 0:
-                            print(f"DEBUG: Key '{key}' has {len(value)} items, first item type: {type(value[0])}")
-                            if isinstance(value[0], dict):
-                                print(f"DEBUG: First item keys: {list(value[0].keys())}")
-                    
             except Exception as e:
                 print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
                 continue
     
     print(f"DEBUG: Found {len(all_qa_pairs)} question-answer pairs from historical RFPs")
-    print(f"DEBUG: This message should appear in the console/logs")
-    if all_qa_pairs:
-        print(f"DEBUG: First Q&A pair: Q: {all_qa_pairs[0]['question'][:100]}... A: {all_qa_pairs[0]['answer'][:100]}...")
-    else:
-        print("DEBUG: No Q&A pairs found - checking data structure...")
-        for i, submission in enumerate(existing_submissions[:2]):
-            print(f"DEBUG: Submission {i+1}: {submission[1]}")
-            if len(submission) > 4 and submission[4]:
-                try:
-                    data = json.loads(submission[4])
-                    print(f"DEBUG: Data keys: {list(data.keys())}")
-                    if 'question_answer_pairs' in data:
-                        print(f"DEBUG: Found {len(data['question_answer_pairs'])} pairs in this submission")
-                    else:
-                        print("DEBUG: No 'question_answer_pairs' key found")
-                except Exception as e:
-                    print(f"DEBUG: Error parsing data: {e}")
     
     # For each new question, find the best matching answer
-    print(f"DEBUG: Processing {len(questions)} questions, limiting to first 10")
-    used_answers = set()  # Track used answers to avoid duplicates
+    used_answers = set()
     
     for i, question in enumerate(questions[:10]):  # Limit to first 10
         print(f"DEBUG: Processing question {i+1}: {question[:100]}...")
         best_match = None
         best_score = 0
+        match_type = "none"
         
-        # Use semantic similarity matching
         question_lower = question.lower()
         question_type = classify_question_type(question_lower)
         
         for qa_pair in all_qa_pairs:
             # Skip if we've already used this answer
-            answer_hash = hash(qa_pair['answer'][:200])  # Use first 200 chars as hash
+            answer_hash = hash(qa_pair['answer'][:200])
             if answer_hash in used_answers:
                 continue
-                
-            # Calculate semantic similarity score
-            score = calculate_semantic_score(question, qa_pair['question'], qa_pair['answer'], question_type)
             
+            # 1. Try exact question matching first
+            if question_lower == qa_pair['question'].lower():
+                best_match = qa_pair
+                best_score = 1.0
+                match_type = "exact"
+                print(f"DEBUG: EXACT MATCH found: {qa_pair['question'][:100]}...")
+                break
+            
+            # 2. Try partial question matching (if question contains key phrases)
+            score = calculate_direct_match_score(question, qa_pair['question'], question_type)
             if score > best_score:
                 best_score = score
                 best_match = qa_pair
-                print(f"DEBUG: New best match (score {score:.3f}): {qa_pair['answer'][:100]}...")
+                match_type = "direct"
+                print(f"DEBUG: Direct match (score {score:.3f}): {qa_pair['question'][:100]}...")
         
-        if best_match and best_score > 0.4:  # Higher threshold for better quality matches
+        if best_match and best_score > 0.3:
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1029,7 +987,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 "source_rfp": best_match['source'],
                 "category": "matched",
                 "source_status": best_match['status'],
-                "matching_reason": f"Semantic match (score: {best_score:.3f})"
+                "matching_reason": f"{match_type.title()} match (score: {best_score:.3f})"
             })
         else:
             # Provide a more helpful fallback answer based on question type
@@ -1041,7 +999,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 "source_rfp": "None",
                 "category": "no_match",
                 "source_status": "unknown",
-                "matching_reason": "No semantic match found"
+                "matching_reason": "No match found"
             })
     
     return {
@@ -1055,6 +1013,63 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
             "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
         }
     }
+
+def calculate_direct_match_score(new_question: str, historical_question: str, question_type: str) -> float:
+    """Calculate direct matching score based on key phrases and question type"""
+    new_q_lower = new_question.lower()
+    hist_q_lower = historical_question.lower()
+    
+    score = 0.0
+    
+    # Extract key phrases from the new question
+    key_phrases = extract_key_phrases(new_q_lower)
+    
+    # Check how many key phrases match in the historical question
+    matches = 0
+    for phrase in key_phrases:
+        if phrase in hist_q_lower:
+            matches += 1
+    
+    if matches > 0:
+        score = matches / len(key_phrases)
+    
+    # Boost for question type matches
+    if question_type == 'network' and any(word in hist_q_lower for word in ['network', 'provider', 'coach', 'therapist']):
+        score += 0.2
+    elif question_type == 'timeline' and any(word in hist_q_lower for word in ['timeline', 'implementation', 'plan']):
+        score += 0.2
+    elif question_type == 'eligibility' and any(word in hist_q_lower for word in ['eligibility', 'dependent', 'file']):
+        score += 0.2
+    elif question_type == 'demo' and any(word in hist_q_lower for word in ['demo', 'sample', 'login']):
+        score += 0.2
+    elif question_type == 'fitness_duty' and any(word in hist_q_lower for word in ['fitness', 'duty', 'standard']):
+        score += 0.2
+    elif question_type == 'loa_cism' and any(word in hist_q_lower for word in ['leave', 'absence', 'loa', 'cism']):
+        score += 0.2
+    
+    return min(1.0, score)
+
+def extract_key_phrases(question: str) -> List[str]:
+    """Extract key phrases from a question for matching"""
+    # Remove common words and extract meaningful phrases
+    common_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'please', 'provide', 'any', 'your', 'you', 'we', 'our', 'their', 'this', 'that', 'these', 'those'}
+    
+    words = question.split()
+    key_phrases = []
+    
+    # Add 2-3 word phrases
+    for i in range(len(words) - 1):
+        phrase = f"{words[i]} {words[i+1]}"
+        if not any(word in common_words for word in phrase.split()):
+            key_phrases.append(phrase)
+    
+    # Add 3-word phrases for important terms
+    for i in range(len(words) - 2):
+        phrase = f"{words[i]} {words[i+1]} {words[i+2]}"
+        if any(important in phrase for important in ['geo access', 'visit limit', 'fitness for', 'leave of', 'implementation timeline']):
+            key_phrases.append(phrase)
+    
+    return key_phrases
 
 def classify_question_type(question_lower: str) -> str:
     """Classify the type of question for better matching"""
