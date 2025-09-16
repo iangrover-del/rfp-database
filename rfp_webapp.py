@@ -610,6 +610,14 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     sheets_analyzed = set()
     pages_analyzed = set()
     
+    # Extract actual sheet names from content if it's an Excel file
+    actual_sheets = set()
+    if "EXCEL FILE PROCESSING:" in content:
+        import re
+        sheet_matches = re.findall(r'=== SHEET: ([^=]+) ===', content)
+        actual_sheets.update(sheet_matches)
+        print(f"DEBUG: Found actual sheets in content: {list(actual_sheets)}")
+    
     # Debug info
     print(f"DEBUG: Total content length: {len(content)} characters")
     print(f"DEBUG: Split into {len(chunks)} chunks")
@@ -782,13 +790,19 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
                     all_questions.extend(actual_questions)
                     print(f"DEBUG: Chunk {i+1} actual questions: {len(actual_questions)}")
                 
-                # Track sheets and pages analyzed
+                # Track sheets and pages analyzed (but don't trust AI completely)
                 if "sheets_analyzed" in chunk_data:
                     sheets_data = chunk_data["sheets_analyzed"]
                     if isinstance(sheets_data, str):
-                        sheets_analyzed.update(sheets_data.split(", ") if sheets_data else [])
+                        # Only add if it looks like a real sheet name (not AI hallucination)
+                        sheet_list = sheets_data.split(", ") if sheets_data else []
+                        for sheet in sheet_list:
+                            if sheet and len(sheet) < 50 and not sheet.startswith("Sheet"):  # Basic validation
+                                sheets_analyzed.add(sheet)
                     elif isinstance(sheets_data, list):
-                        sheets_analyzed.update(sheets_data)
+                        for sheet in sheets_data:
+                            if isinstance(sheet, str) and len(sheet) < 50 and not sheet.startswith("Sheet"):
+                                sheets_analyzed.add(sheet)
                 
                 if "pages_analyzed" in chunk_data:
                     pages_data = chunk_data["pages_analyzed"]
@@ -819,12 +833,14 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     final_result = {
         "all_questions_found": all_questions,
         "question_count": len(all_questions),
-        "sheets_analyzed": list(sheets_analyzed) if sheets_analyzed else [],
+        "sheets_analyzed": list(actual_sheets) if actual_sheets else list(sheets_analyzed) if sheets_analyzed else [],
         "pages_analyzed": list(pages_analyzed) if pages_analyzed else [],
         "debug_info": {
             "total_chunks": len(chunks),
             "chunk_sizes": [len(chunk) for chunk in chunks],
-            "total_content_length": len(content)
+            "total_content_length": len(content),
+            "actual_sheets_found": len(actual_sheets),
+            "ai_reported_sheets": len(sheets_analyzed)
         }
     }
     
