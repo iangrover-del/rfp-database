@@ -1000,9 +1000,10 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
         max_pairs_to_check = min(100, len(all_qa_pairs))  # Check max 100 pairs per question
         
         for qa_pair in all_qa_pairs[:max_pairs_to_check]:
-            # Skip if we've already used this answer
+            # Skip if we've already used this exact answer
             answer_hash = hash(qa_pair['answer'][:200])
             if answer_hash in used_answers:
+                print(f"DEBUG: Skipping already used answer: {qa_pair['answer'][:50]}...")
                 continue
             
             # 1. Try exact question matching first
@@ -1082,40 +1083,15 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
     if matches > 0:
         score = matches / len(key_phrases)
     
-    # Boost for question type matches
-    if question_type == 'network' and any(word in hist_q_lower for word in ['network', 'provider', 'coach', 'therapist']):
-        score += 0.3
-    elif question_type == 'timeline' and any(word in hist_q_lower for word in ['timeline', 'implementation', 'plan']):
-        score += 0.3
-    elif question_type == 'eligibility' and any(word in hist_q_lower for word in ['eligibility', 'dependent', 'file']):
-        score += 0.3
-    elif question_type == 'demo' and any(word in hist_q_lower for word in ['demo', 'sample', 'login']):
-        score += 0.3
-    elif question_type == 'fitness_duty' and any(word in hist_q_lower for word in ['fitness', 'duty', 'standard']):
-        score += 0.3
-    elif question_type == 'loa_cism' and any(word in hist_q_lower for word in ['leave', 'absence', 'loa', 'cism']):
-        score += 0.3
+    # Simple keyword matching - treat all questions equally
+    # Look for common words that should match
+    common_words = ['company', 'name', 'address', 'contact', 'website', 'eligibility', 'dependent', 
+                   'fitness', 'duty', 'leave', 'absence', 'network', 'provider', 'timeline', 
+                   'implementation', 'demo', 'sample', 'login']
     
-    # Special handling for common RFP question patterns
-    if 'company' in new_q_lower and 'name' in new_q_lower and ('company' in hist_q_lower and 'name' in hist_q_lower):
-        score += 0.4  # Company name questions
-    if 'address' in new_q_lower and 'address' in hist_q_lower:
-        score += 0.4  # Address questions
-    if 'contact' in new_q_lower and 'contact' in hist_q_lower:
-        score += 0.4  # Contact questions
-    if 'website' in new_q_lower and 'website' in hist_q_lower:
-        score += 0.4  # Website questions
-    if 'eligibility' in new_q_lower and 'eligibility' in hist_q_lower:
-        score += 0.4  # Eligibility questions
-    if 'dependent' in new_q_lower and 'dependent' in hist_q_lower:
-        score += 0.4  # Dependent questions
-        # Penalize if it's about eligibility files when asking about dependent definitions
-        if 'definition' in new_q_lower and 'file' in hist_q_lower:
-            score -= 0.3  # Wrong type of answer
-    if 'fitness' in new_q_lower and 'duty' in new_q_lower and ('fitness' in hist_q_lower or 'duty' in hist_q_lower):
-        score += 0.4  # Fitness-for-duty questions
-    if 'leave' in new_q_lower and 'absence' in new_q_lower and ('leave' in hist_q_lower or 'absence' in hist_q_lower):
-        score += 0.4  # LOA questions
+    for word in common_words:
+        if word in new_q_lower and word in hist_q_lower:
+            score += 0.1  # Small boost for each matching word
     
     return min(1.0, score)
 
@@ -1310,28 +1286,7 @@ def calculate_text_similarity(text1: str, text2: str) -> float:
 
 def get_fallback_answer(question: str, question_type: str) -> str:
     """Provide a helpful fallback answer when no good match is found"""
-    if question_type == 'network':
-        return "Modern Health maintains a global network of licensed therapists, coaches, and mental health professionals. Please provide specific network details based on your current provider data."
-    elif question_type == 'timeline':
-        return "Modern Health typically implements programs within 4-6 weeks. Please provide your specific implementation timeline and plan details."
-    elif question_type == 'eligibility':
-        return "Modern Health works with clients to determine eligibility requirements. Please provide your specific eligibility file requirements and dependent definitions."
-    elif 'dependent' in question.lower() and 'definition' in question.lower():
-        return "Modern Health follows the eligibility requirements of each of our clients. The Client has the ability to determine its definition of a dependent and eligibility rules and requirements. Adult dependents can register themselves in the Modern Health app or web platform, or by calling the Modern Health Helpline. Dependents under the age of 18 will need to be invited to register by the employee."
-    elif question_type == 'demo':
-        return "Modern Health can provide demo access and sample logins. Please contact your account manager to arrange a demonstration of our platform capabilities."
-    elif question_type == 'visit_limit':
-        return "Modern Health provides flexible visit limits and coverage options. Please provide specific details about visit limits and coverage for non-enrolled members."
-    elif question_type == 'fitness_duty':
-        return "Modern Health can provide information about fitness-for-duty processes and standards. Please provide specific details about your fitness-for-duty requirements and delivery times."
-    elif question_type == 'loa_cism':
-        return "Modern Health supports leave of absence processes and critical incident stress management. Please provide specific details about your LOA process flows and CISM requirements."
-    elif question_type == 'geo_access':
-        return "Modern Health provides global access to mental health services. Please provide specific geographic access requirements and census data details."
-    elif question_type == 'wait_times':
-        return "Modern Health provides rapid access to care with industry-leading wait times. Please provide specific wait time requirements and appointment scheduling details."
-    else:
-        return "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements."
+    return "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements."
 
 def clean_brand_names(text: str) -> str:
     """Remove competitor brand names and update company information"""
