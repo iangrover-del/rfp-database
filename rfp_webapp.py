@@ -1080,7 +1080,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 break
             
             # 2. Try partial question matching (if question contains key phrases)
-            score = calculate_direct_match_score(question, qa_pair['question'], question_type)
+            score = calculate_direct_match_score(question, qa_pair['question'], question_type, qa_pair)
             if score > best_score:
                 best_score = score
                 best_match = qa_pair
@@ -1131,7 +1131,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
         }
     }
 
-def calculate_direct_match_score(new_question: str, historical_question: str, question_type: str) -> float:
+def calculate_direct_match_score(new_question: str, historical_question: str, question_type: str, qa_pair: dict) -> float:
     """Calculate direct matching score based on key phrases and question type"""
     new_q_lower = new_question.lower()
     hist_q_lower = historical_question.lower()
@@ -1175,10 +1175,14 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
         if 'implementation' in hist_q_lower and 'timeline' in hist_q_lower:
             score += 0.4  # Strong boost for implementation timeline questions
     
-    # Network and provider questions
+    # Network and provider questions - be more specific
     if any(word in new_q_lower for word in ['network', 'provider', 'coach', 'therapist', 'psychiatrist', 'table']):
         if any(word in hist_q_lower for word in ['network', 'provider', 'coach', 'therapist', 'psychiatrist']):
-            score += 0.4  # Strong boost for network/provider questions
+            # Check if the historical answer actually contains numbers/counts
+            if any(char.isdigit() for char in qa_pair['answer']):
+                score += 0.4  # Strong boost for network/provider questions with numbers
+            else:
+                score -= 0.2  # Penalty for network questions without actual counts
     
     # Geo access questions
     if 'geo' in new_q_lower and 'access' in new_q_lower:
@@ -1192,7 +1196,14 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
         if 'sample' in hist_q_lower and 'login' in hist_q_lower:
             score += 0.4  # Strong boost for sample login questions
         elif 'pricing' in hist_q_lower or 'pepm' in hist_q_lower:
-            score -= 0.3  # Penalty for pricing answers on login questions
+            score -= 0.5  # Strong penalty for pricing answers on login questions
+    
+    # Fitness-for-duty questions
+    if 'fitness' in new_q_lower and 'duty' in new_q_lower:
+        if 'fitness' in hist_q_lower and 'duty' in hist_q_lower:
+            score += 0.4  # Strong boost for fitness-for-duty questions
+        elif 'employee' in hist_q_lower and 'count' in hist_q_lower:
+            score -= 0.4  # Penalty for employee count answers on fitness-for-duty questions
     
     # Visit limit questions
     if 'visit' in new_q_lower and 'limit' in new_q_lower:
@@ -1405,7 +1416,14 @@ def get_fallback_answer(question: str, question_type: str) -> str:
     
     # Provide specific fallback answers for common question types
     if 'network' in question_lower or 'provider' in question_lower or 'table' in question_lower:
-        return "Modern Health maintains a global network of 86,000+ licensed providers including therapists, coaches, and psychiatrists. Please provide specific network details and provider counts based on your current data."
+        if 'how many' in question_lower and 'total' in question_lower:
+            return "Modern Health maintains a global network of 86,000+ licensed providers. Please provide specific provider counts for this category based on your current network data."
+        elif 'how many' in question_lower and 'in-person' in question_lower:
+            return "Modern Health has providers available both in-person and virtually. Please provide specific in-person provider counts for this category based on your current network data."
+        elif 'how many' in question_lower and 'virtual' in question_lower:
+            return "Modern Health offers virtual care through our digital platform. Please provide specific virtual provider counts for this category based on your current network data."
+        else:
+            return "Modern Health maintains a global network of 86,000+ licensed providers including therapists, coaches, and psychiatrists. Please provide specific network details and provider counts based on your current data."
     elif 'geo' in question_lower and 'access' in question_lower:
         return "Modern Health provides global access to mental health services. Please provide specific geographic access requirements and census data details."
     elif 'dependent' in question_lower and 'definition' in question_lower:
