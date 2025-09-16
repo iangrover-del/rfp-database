@@ -982,14 +982,17 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 best_match = qa_pair
                 print(f"DEBUG: New best match (score {score:.3f}): {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score > 0.3:  # Semantic similarity threshold
+        if best_match and best_score > 0.5:  # Higher threshold for better quality matches
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
             
+            # Clean brand names from the answer
+            cleaned_answer = clean_brand_names(best_match['answer'])
+            
             matches.append({
                 "question": question,
-                "suggested_answer": best_match['answer'],
+                "suggested_answer": cleaned_answer,
                 "confidence": min(95, int(best_score * 100)),
                 "source_rfp": best_match['source'],
                 "category": "matched",
@@ -1053,29 +1056,68 @@ def calculate_semantic_score(new_question: str, historical_question: str, histor
     
     # 1. Direct question similarity (highest weight)
     question_similarity = calculate_text_similarity(new_q_lower, hist_q_lower)
-    score += question_similarity * 0.6  # 60% weight on question similarity
+    score += question_similarity * 0.7  # 70% weight on question similarity
     
     # 2. Answer relevance to question type
     answer_relevance = calculate_answer_relevance(hist_a_lower, question_type)
-    score += answer_relevance * 0.4  # 40% weight on answer relevance
+    score += answer_relevance * 0.3  # 30% weight on answer relevance
     
     # 3. Boost for exact phrase matches
     if 'fitness-for-duty' in new_q_lower and ('fitness' in hist_a_lower or 'duty' in hist_a_lower):
-        score += 0.3
+        score += 0.4
     if 'visit limit' in new_q_lower and 'visit limit' in hist_a_lower:
-        score += 0.3
+        score += 0.4
     if 'implementation timeline' in new_q_lower and 'implementation' in hist_a_lower:
-        score += 0.3
+        score += 0.4
     if 'loa' in new_q_lower and ('loa' in hist_a_lower or 'leave of absence' in hist_a_lower):
-        score += 0.3
+        score += 0.4
+    if 'table' in new_q_lower and 'table' in hist_a_lower:
+        score += 0.4
+    if 'geo access' in new_q_lower and ('geo' in hist_a_lower or 'access' in hist_a_lower):
+        score += 0.4
+    if 'demo' in new_q_lower and ('demo' in hist_a_lower or 'sample' in hist_a_lower):
+        score += 0.4
     
-    # 4. Penalize irrelevant answers
-    if question_type == 'fitness_duty':
-        if any(word in hist_a_lower for word in ['partnership', 'strategic', 'alignment', 'communication']):
+    # 4. Heavy penalties for completely wrong answers
+    if question_type == 'network' and 'table' in new_q_lower:
+        # Network table question should NOT get suicide/self-harm answers
+        if any(word in hist_a_lower for word in ['suicide', 'self-harm', 'crisis', 'emergency', 'risk']):
+            score -= 0.8
+        # Should have network/provider info
+        if not any(word in hist_a_lower for word in ['network', 'provider', 'coach', 'therapist', 'coverage']):
+            score -= 0.5
+    
+    elif question_type == 'geo_access':
+        # Geo access question should NOT get eligibility answers
+        if any(word in hist_a_lower for word in ['eligibility', 'dependent', 'file', 'requirements']):
+            score -= 0.6
+        # Should have geo/access info
+        if not any(word in hist_a_lower for word in ['geo', 'access', 'census', 'pricing', 'location']):
             score -= 0.4
-    elif question_type == 'network':
-        if 'network coverage system' not in hist_a_lower and 'provider' not in hist_a_lower:
-            score -= 0.2
+    
+    elif question_type == 'fitness_duty':
+        # Fitness-for-duty should NOT get partnership/strategic answers
+        if any(word in hist_a_lower for word in ['partnership', 'strategic', 'alignment', 'communication', 'goals']):
+            score -= 0.7
+        # Should have fitness/duty info
+        if not any(word in hist_a_lower for word in ['fitness', 'duty', 'standard', 'process', 'delivery']):
+            score -= 0.5
+    
+    elif question_type == 'demo':
+        # Demo question should NOT get training answers
+        if any(word in hist_a_lower for word in ['training', 'webinar', 'onboarding', 'workshop']):
+            score -= 0.6
+        # Should have demo/sample info
+        if not any(word in hist_a_lower for word in ['demo', 'sample', 'login', 'capabilities', 'show']):
+            score -= 0.4
+    
+    elif question_type == 'wait_times':
+        # Wait times question should NOT get general service descriptions
+        if any(word in hist_a_lower for word in ['access', 'unlimited', '24/7', 'global']):
+            score -= 0.3
+        # Should have wait time info
+        if not any(word in hist_a_lower for word in ['wait', 'time', 'appointment', 'average', 'schedule']):
+            score -= 0.4
     
     return max(0.0, min(1.0, score))  # Clamp between 0 and 1
 
@@ -1097,6 +1139,23 @@ def calculate_text_similarity(text1: str, text2: str) -> float:
     keyword_boost = important_matches * 0.1
     
     return min(1.0, overlap_score + keyword_boost)
+
+def clean_brand_names(text: str) -> str:
+    """Remove competitor brand names from text"""
+    # List of competitor names to remove
+    brand_names = [
+        'Henry Schein', 'Voya Financial', 'Voya', 'Barclays', 'Boston Scientific', 
+        'Mattel', 'Sunrun', 'Stripe', 'Uber', 'Palo Alto Networks', 'Electronic Arts'
+    ]
+    
+    cleaned_text = text
+    for brand in brand_names:
+        # Remove brand name and any following punctuation
+        cleaned_text = cleaned_text.replace(brand, '[Client]')
+        cleaned_text = cleaned_text.replace(brand.lower(), '[client]')
+        cleaned_text = cleaned_text.replace(brand.upper(), '[CLIENT]')
+    
+    return cleaned_text
 
 def calculate_answer_relevance(answer: str, question_type: str) -> float:
     """Calculate how relevant an answer is to a specific question type"""
