@@ -996,6 +996,10 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
         question_lower = question.lower()
         question_type = classify_question_type(question_lower)
         
+        # Debug: show key phrases for this question
+        key_phrases = extract_key_phrases(question_lower)
+        print(f"DEBUG: Question {i+1} key phrases: {key_phrases[:10]}...")  # Show first 10 phrases
+        
         # Limit the number of Q&A pairs we check to avoid performance issues
         max_pairs_to_check = min(100, len(all_qa_pairs))  # Check max 100 pairs per question
         
@@ -1023,7 +1027,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 print(f"DEBUG: Direct match (score {score:.3f}): {qa_pair['question'][:100]}...")
                 print(f"DEBUG: Answer preview: {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score > 0.15:  # Balanced threshold for good matches
+        if best_match and best_score > 0.05:  # Very low threshold to capture more matches
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1083,7 +1087,8 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
             matches += 1
     
     if matches > 0:
-        score = matches / len(key_phrases)
+        # Give more weight to matches - even a few matches should give a decent score
+        score = min(0.8, matches / max(3, len(key_phrases) * 0.3))  # More generous scoring
     
     # Simple keyword matching - treat all questions equally
     # Look for common words that should match, but require multiple matches for a good score
@@ -1107,12 +1112,19 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
 def extract_key_phrases(question: str) -> List[str]:
     """Extract key phrases from a question for matching"""
     # Remove common words and extract meaningful phrases
-    common_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'please', 'provide', 'any', 'your', 'you', 'we', 'our', 'their', 'this', 'that', 'these', 'those'}
+    common_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'please', 'provide', 'any', 'your', 'you', 'we', 'our', 'their', 'this', 'that', 'these', 'those', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'must'}
     
-    words = question.split()
+    words = question.lower().split()
     key_phrases = []
     
-    # Add 2-3 word phrases
+    # Add individual important words (not just phrases)
+    important_words = ['eligibility', 'dependent', 'definition', 'requirements', 'file', 'standards', 'process', 'delivery', 'time', 'fitness', 'duty', 'leave', 'absence', 'loa', 'cism', 'manager', 'referrals', 'implementation', 'timeline', 'plan', 'integration', 'hpi', 'health', 'plan', 'fees', 'performance', 'guarantees', 'geo', 'access', 'census', 'pricing', 'document', 'sample', 'login', 'demo', 'capabilities', 'experience', 'visit', 'limit', 'enrolled', 'medical', 'outline', 'include', 'attachment', 'standard', 'clearly', 'note', 'eligible', 'eap']
+    
+    for word in words:
+        if word not in common_words and len(word) > 2:
+            key_phrases.append(word)
+    
+    # Add 2-word phrases
     for i in range(len(words) - 1):
         phrase = f"{words[i]} {words[i+1]}"
         if not any(word in common_words for word in phrase.split()):
@@ -1121,13 +1133,13 @@ def extract_key_phrases(question: str) -> List[str]:
     # Add 3-word phrases for important terms
     for i in range(len(words) - 2):
         phrase = f"{words[i]} {words[i+1]} {words[i+2]}"
-        if any(important in phrase for important in ['geo access', 'visit limit', 'fitness for', 'leave of', 'implementation timeline', 'standard leave', 'manager referrals', 'process flows']):
+        if any(important in phrase for important in ['geo access', 'visit limit', 'fitness for', 'leave of', 'implementation timeline', 'standard leave', 'manager referrals', 'process flows', 'eligibility file', 'dependent definition', 'health plan', 'performance guarantees']):
             key_phrases.append(phrase)
     
     # Add 4-word phrases for very specific terms
     for i in range(len(words) - 3):
         phrase = f"{words[i]} {words[i+1]} {words[i+2]} {words[i+3]}"
-        if any(important in phrase for important in ['leave of absence', 'critical incident', 'stress management', 'fitness for duty']):
+        if any(important in phrase for important in ['leave of absence', 'critical incident', 'stress management', 'fitness for duty', 'health plan integration']):
             key_phrases.append(phrase)
     
     return key_phrases
