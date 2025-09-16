@@ -1066,7 +1066,13 @@ def extract_key_phrases(question: str) -> List[str]:
     # Add 3-word phrases for important terms
     for i in range(len(words) - 2):
         phrase = f"{words[i]} {words[i+1]} {words[i+2]}"
-        if any(important in phrase for important in ['geo access', 'visit limit', 'fitness for', 'leave of', 'implementation timeline']):
+        if any(important in phrase for important in ['geo access', 'visit limit', 'fitness for', 'leave of', 'implementation timeline', 'standard leave', 'manager referrals', 'process flows']):
+            key_phrases.append(phrase)
+    
+    # Add 4-word phrases for very specific terms
+    for i in range(len(words) - 3):
+        phrase = f"{words[i]} {words[i+1]} {words[i+2]} {words[i+3]}"
+        if any(important in phrase for important in ['leave of absence', 'critical incident', 'stress management', 'fitness for duty']):
             key_phrases.append(phrase)
     
     return key_phrases
@@ -1256,7 +1262,7 @@ def get_fallback_answer(question: str, question_type: str) -> str:
         return "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements."
 
 def clean_brand_names(text: str) -> str:
-    """Remove competitor brand names from text"""
+    """Remove competitor brand names and update company information"""
     # List of competitor names to remove
     brand_names = [
         'Henry Schein', 'Voya Financial', 'Voya', 'Barclays', 'Boston Scientific', 
@@ -1264,11 +1270,16 @@ def clean_brand_names(text: str) -> str:
     ]
     
     cleaned_text = text
+    
+    # Remove competitor brand names
     for brand in brand_names:
-        # Remove brand name and any following punctuation
         cleaned_text = cleaned_text.replace(brand, '[Client]')
         cleaned_text = cleaned_text.replace(brand.lower(), '[client]')
         cleaned_text = cleaned_text.replace(brand.upper(), '[CLIENT]')
+    
+    # Update outdated company information
+    cleaned_text = cleaned_text.replace('Modern Health Arizona, PLLC', 'Modern Health LLC')
+    cleaned_text = cleaned_text.replace('650 California Street, Fl. 7, Office 07-128, San Francisco, CA', '[Current Address]')
     
     return cleaned_text
 
