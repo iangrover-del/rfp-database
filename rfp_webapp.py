@@ -982,7 +982,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 best_match = qa_pair
                 print(f"DEBUG: New best match (score {score:.3f}): {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score > 0.5:  # Higher threshold for better quality matches
+        if best_match and best_score > 0.2:  # Lower threshold to get more matches
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1078,6 +1078,36 @@ def calculate_semantic_score(new_question: str, historical_question: str, histor
     if 'demo' in new_q_lower and ('demo' in hist_a_lower or 'sample' in hist_a_lower):
         score += 0.4
     
+    # 4. Special handling for specific question patterns
+    if 'complete the table' in new_q_lower and 'network' in new_q_lower:
+        # This is a network table question - boost network-related answers
+        if any(word in hist_a_lower for word in ['network', 'provider', 'coach', 'therapist', 'coverage', 'access']):
+            score += 0.3
+        # Look for table-like data in the answer
+        if any(word in hist_a_lower for word in ['table', 'data', 'numbers', 'count', 'total', 'providers']):
+            score += 0.2
+    
+    if 'geo access' in new_q_lower or 'census' in new_q_lower:
+        # This is a geo access question - boost geographic/access answers
+        if any(word in hist_a_lower for word in ['geo', 'access', 'census', 'pricing', 'location', 'coverage']):
+            score += 0.3
+        if any(word in hist_a_lower for word in ['global', 'worldwide', 'countries', 'regions']):
+            score += 0.2
+    
+    if 'wait times' in new_q_lower or 'appointment' in new_q_lower:
+        # This is a wait time question - boost timing-related answers
+        if any(word in hist_a_lower for word in ['wait', 'time', 'appointment', 'schedule', 'availability']):
+            score += 0.3
+        if any(word in hist_a_lower for word in ['hours', 'days', 'minutes', 'immediate', '24/7']):
+            score += 0.2
+    
+    if 'demo' in new_q_lower and 'sample' in new_q_lower:
+        # This is a demo question - boost demo-related answers
+        if any(word in hist_a_lower for word in ['demo', 'sample', 'login', 'capabilities', 'show', 'demonstrate']):
+            score += 0.3
+        if any(word in hist_a_lower for word in ['access', 'platform', 'app', 'system']):
+            score += 0.2
+    
     # 4. Heavy penalties for completely wrong answers
     if question_type == 'network' and 'table' in new_q_lower:
         # Network table question should NOT get suicide/self-harm answers
@@ -1133,10 +1163,24 @@ def calculate_text_similarity(text1: str, text2: str) -> float:
     common_words = words1.intersection(words2)
     overlap_score = len(common_words) / max(len(words1), len(words2))
     
-    # Boost for important keywords
-    important_keywords = ['network', 'timeline', 'eligibility', 'demo', 'visit', 'limit', 'loa', 'fitness', 'duty', 'implementation', 'geo', 'access', 'wait', 'time']
-    important_matches = sum(1 for word in important_keywords if word in words1 and word in words2)
-    keyword_boost = important_matches * 0.1
+    # Boost for important keywords with higher weights
+    important_keywords = {
+        'network': 0.3, 'provider': 0.3, 'coach': 0.3, 'therapist': 0.3,
+        'timeline': 0.3, 'implementation': 0.3, 'plan': 0.2,
+        'eligibility': 0.3, 'dependent': 0.2, 'file': 0.2,
+        'demo': 0.3, 'sample': 0.3, 'login': 0.2,
+        'visit': 0.3, 'limit': 0.3, 'enrolled': 0.2,
+        'loa': 0.3, 'leave': 0.2, 'absence': 0.2,
+        'fitness': 0.3, 'duty': 0.3, 'standard': 0.2,
+        'geo': 0.3, 'access': 0.3, 'census': 0.2,
+        'wait': 0.3, 'time': 0.2, 'appointment': 0.2,
+        'table': 0.3, 'complete': 0.2
+    }
+    
+    keyword_boost = 0.0
+    for word, weight in important_keywords.items():
+        if word in words1 and word in words2:
+            keyword_boost += weight
     
     return min(1.0, overlap_score + keyword_boost)
 
@@ -1505,10 +1549,10 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     
     prompt = f"""
     You are an expert RFP analyst. Your job is to find answers from the previous submissions below to answer questions in the NEW RFP.
-
+    
     PREVIOUS SUBMISSIONS WITH ANSWERS (use these to find answers):
     {existing_summary}
-
+    
     ===== NEW RFP CONTENT TO ANALYZE =====
     {new_content}
     ===== END NEW RFP CONTENT =====
