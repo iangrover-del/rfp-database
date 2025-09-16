@@ -876,6 +876,8 @@ def extract_numbered_questions(content: str) -> List[str]:
 
 def clean_question_text(text: str) -> str:
     """Clean up random spaces and formatting issues in question text"""
+    import re
+    
     # Fix common spacing issues
     text = re.sub(r'\s+', ' ', text)  # Replace multiple spaces with single space
     text = re.sub(r'\s+([,.!?;:])', r'\1', text)  # Remove spaces before punctuation
