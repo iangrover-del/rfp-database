@@ -1023,7 +1023,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 print(f"DEBUG: Direct match (score {score:.3f}): {qa_pair['question'][:100]}...")
                 print(f"DEBUG: Answer preview: {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score > 0.3:  # Higher threshold for better quality matches
+        if best_match and best_score > 0.15:  # Balanced threshold for good matches
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1043,6 +1043,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
         else:
             # Provide a more helpful fallback answer based on question type
             fallback_answer = get_fallback_answer(question, question_type)
+            print(f"DEBUG: No match found for question {i+1}, best score was {best_score:.3f}")
             matches.append({
                 "question": question,
                 "suggested_answer": fallback_answer,
@@ -1050,7 +1051,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 "source_rfp": "None",
                 "category": "no_match",
                 "source_status": "unknown",
-                "matching_reason": "No match found"
+                "matching_reason": f"No match found (best score: {best_score:.3f})"
             })
     
     return {
