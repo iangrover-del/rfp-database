@@ -624,6 +624,13 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     for i, chunk in enumerate(chunks):
         print(f"DEBUG: Chunk {i+1}: {len(chunk)} characters")
     
+    # Debug: Show the full content for PDF files to see tables
+    if "PDF" in content or "Page" in content:
+        print(f"DEBUG: Full PDF content preview:")
+        print("=" * 80)
+        print(content[:2000])  # Show first 2000 characters
+        print("=" * 80)
+    
     for i, chunk in enumerate(chunks):
         prompt = f"""
         You are an expert RFP response extraction specialist. Your task is to extract BOTH questions and their corresponding answers from this RFP response document.
@@ -847,7 +854,7 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     return final_result
 
 def extract_numbered_questions(content: str) -> List[str]:
-    """Extract all numbered questions from content, filtering out table questions from PDFs"""
+    """Extract all numbered questions from content, including breaking down table questions"""
     import re
     
     questions = []
@@ -856,39 +863,81 @@ def extract_numbered_questions(content: str) -> List[str]:
     pattern1 = r'^(\d+)\.\s+(.+)$'
     matches1 = re.findall(pattern1, content, re.MULTILINE)
     for num, question in matches1:
-        # Skip table questions from PDFs
-        if is_table_question(question):
-            continue
         # Clean up random spaces in the question
         cleaned_question = clean_question_text(question.strip())
-        questions.append(f"{num}. {cleaned_question}")
+        
+        # Check if this is a table question that should be broken down
+        if is_table_question(cleaned_question):
+            # Break down table questions into individual questions
+            table_questions = break_down_table_question(cleaned_question)
+            questions.extend(table_questions)
+        else:
+            questions.append(f"{num}. {cleaned_question}")
     
     # Look for patterns like "1)", "2)", "3)", etc.
     pattern2 = r'^(\d+)\)\s+(.+)$'
     matches2 = re.findall(pattern2, content, re.MULTILINE)
     for num, question in matches2:
-        # Skip table questions from PDFs
-        if is_table_question(question):
-            continue
         # Clean up random spaces in the question
         cleaned_question = clean_question_text(question.strip())
-        questions.append(f"{num}) {cleaned_question}")
+        
+        # Check if this is a table question that should be broken down
+        if is_table_question(cleaned_question):
+            # Break down table questions into individual questions
+            table_questions = break_down_table_question(cleaned_question)
+            questions.extend(table_questions)
+        else:
+            questions.append(f"{num}) {cleaned_question}")
     
     # Look for patterns like "1:", "2:", "3:", etc.
     pattern3 = r'^(\d+):\s+(.+)$'
     matches3 = re.findall(pattern3, content, re.MULTILINE)
     for num, question in matches3:
-        # Skip table questions from PDFs
-        if is_table_question(question):
-            continue
         # Clean up random spaces in the question
         cleaned_question = clean_question_text(question.strip())
-        questions.append(f"{num}: {cleaned_question}")
+        
+        # Check if this is a table question that should be broken down
+        if is_table_question(cleaned_question):
+            # Break down table questions into individual questions
+            table_questions = break_down_table_question(cleaned_question)
+            questions.extend(table_questions)
+        else:
+            questions.append(f"{num}: {cleaned_question}")
     
     # Sort by number
     questions.sort(key=lambda x: int(re.search(r'^(\d+)', x).group(1)))
     
     return questions
+
+def break_down_table_question(question: str) -> List[str]:
+    """Break down table questions into individual questions"""
+    question_lower = question.lower()
+    
+    # Check if this is the network table question
+    if 'complete the table below based on your current network' in question_lower:
+        # Extract provider types from the content (we'll need to pass more context)
+        provider_types = [
+            'Mental health coaches',
+            'Therapists — Adults', 
+            'Therapists — Child and adolescents (ages 0 – 5)',
+            'Therapists — Child and adolescents (ages 6 – 10)',
+            'Therapists — Child and adolescents (ages 11 -12)',
+            'Therapists — Child and adolescents (ages 13 – 18)',
+            'Psychiatrists — Adults',
+            'Psychiatrists — Child and adolescents',
+            'Psychiatric mental health nurse practitioner'
+        ]
+        
+        questions = []
+        for provider_type in provider_types:
+            questions.append(f"How many total {provider_type.lower()} in the US do you have?")
+            questions.append(f"How many in-person {provider_type.lower()} in the US do you have?")
+            questions.append(f"How many virtual {provider_type.lower()} in the US do you have?")
+        
+        return questions
+    
+    # For other table questions, return as-is for now
+    return [question]
 
 def clean_question_text(text: str) -> str:
     """Clean up random spaces and formatting issues in question text"""
@@ -1121,6 +1170,16 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
         if 'implementation' in hist_q_lower and 'timeline' in hist_q_lower:
             score += 0.4  # Strong boost for implementation timeline questions
     
+    # Network and provider questions
+    if any(word in new_q_lower for word in ['network', 'provider', 'coach', 'therapist', 'psychiatrist', 'table']):
+        if any(word in hist_q_lower for word in ['network', 'provider', 'coach', 'therapist', 'psychiatrist']):
+            score += 0.4  # Strong boost for network/provider questions
+    
+    # Geo access questions
+    if 'geo' in new_q_lower and 'access' in new_q_lower:
+        if 'geo' in hist_q_lower and 'access' in hist_q_lower:
+            score += 0.4  # Strong boost for geo access questions
+    
     return min(1.0, score)
 
 def extract_key_phrases(question: str) -> List[str]:
@@ -1321,7 +1380,25 @@ def calculate_text_similarity(text1: str, text2: str) -> float:
 
 def get_fallback_answer(question: str, question_type: str) -> str:
     """Provide a helpful fallback answer when no good match is found"""
-    return "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements."
+    question_lower = question.lower()
+    
+    # Provide specific fallback answers for common question types
+    if 'network' in question_lower or 'provider' in question_lower or 'table' in question_lower:
+        return "Modern Health maintains a global network of 86,000+ licensed providers including therapists, coaches, and psychiatrists. Please provide specific network details and provider counts based on your current data."
+    elif 'geo' in question_lower and 'access' in question_lower:
+        return "Modern Health provides global access to mental health services. Please provide specific geographic access requirements and census data details."
+    elif 'dependent' in question_lower and 'definition' in question_lower:
+        return "Modern Health follows the eligibility requirements of each client. The Client determines dependent definitions and eligibility rules. Adult dependents can register themselves, while dependents under 18 need employee invitation."
+    elif 'eligibility' in question_lower and 'file' in question_lower:
+        return "Modern Health requires eligibility files containing employee information (name, email, ID). Files can be sent monthly, biweekly, or weekly via Box or SFTP. We integrate with Workday and other HR systems."
+    elif 'fitness' in question_lower and 'duty' in question_lower:
+        return "Modern Health can provide information about fitness-for-duty processes and standards. Please provide specific details about your fitness-for-duty requirements and delivery times."
+    elif 'leave' in question_lower and 'absence' in question_lower:
+        return "Modern Health supports leave of absence processes and critical incident stress management. Please provide specific details about your LOA process flows and CISM requirements."
+    elif 'implementation' in question_lower and 'timeline' in question_lower:
+        return "Modern Health typically implements programs within 4-6 weeks. Implementation includes setup, integration, and employee launch. Please provide your specific implementation timeline and plan details."
+    else:
+        return "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements."
 
 def clean_brand_names(text: str) -> str:
     """Remove competitor brand names and update company information"""
