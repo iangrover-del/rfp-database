@@ -972,7 +972,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 match_type = "direct"
                 print(f"DEBUG: Direct match (score {score:.3f}): {qa_pair['question'][:100]}...")
         
-        if best_match and best_score > 0.3:
+        if best_match and best_score > 0.1:  # Much lower threshold to get more matches
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1035,17 +1035,27 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
     
     # Boost for question type matches
     if question_type == 'network' and any(word in hist_q_lower for word in ['network', 'provider', 'coach', 'therapist']):
-        score += 0.2
+        score += 0.3
     elif question_type == 'timeline' and any(word in hist_q_lower for word in ['timeline', 'implementation', 'plan']):
-        score += 0.2
+        score += 0.3
     elif question_type == 'eligibility' and any(word in hist_q_lower for word in ['eligibility', 'dependent', 'file']):
-        score += 0.2
+        score += 0.3
     elif question_type == 'demo' and any(word in hist_q_lower for word in ['demo', 'sample', 'login']):
-        score += 0.2
+        score += 0.3
     elif question_type == 'fitness_duty' and any(word in hist_q_lower for word in ['fitness', 'duty', 'standard']):
-        score += 0.2
+        score += 0.3
     elif question_type == 'loa_cism' and any(word in hist_q_lower for word in ['leave', 'absence', 'loa', 'cism']):
-        score += 0.2
+        score += 0.3
+    
+    # Special handling for common RFP question patterns
+    if 'company' in new_q_lower and 'name' in new_q_lower and ('company' in hist_q_lower and 'name' in hist_q_lower):
+        score += 0.4  # Company name questions
+    if 'address' in new_q_lower and 'address' in hist_q_lower:
+        score += 0.4  # Address questions
+    if 'contact' in new_q_lower and 'contact' in hist_q_lower:
+        score += 0.4  # Contact questions
+    if 'website' in new_q_lower and 'website' in hist_q_lower:
+        score += 0.4  # Website questions
     
     return min(1.0, score)
 
@@ -1279,7 +1289,9 @@ def clean_brand_names(text: str) -> str:
     
     # Update outdated company information
     cleaned_text = cleaned_text.replace('Modern Health Arizona, PLLC', 'Modern Health LLC')
+    cleaned_text = cleaned_text.replace('Modern Health Arizona, PLLC,', 'Modern Health LLC,')
     cleaned_text = cleaned_text.replace('650 California Street, Fl. 7, Office 07-128, San Francisco, CA', '[Current Address]')
+    cleaned_text = cleaned_text.replace('650 California Street, Fl. 7, Office 07-128, San Francisco, CA.', '[Current Address].')
     
     return cleaned_text
 
