@@ -904,8 +904,12 @@ def extract_numbered_questions(content: str) -> List[str]:
         else:
             questions.append(f"{num}: {cleaned_question}")
     
-    # Sort by number
-    questions.sort(key=lambda x: int(re.search(r'^(\d+)', x).group(1)))
+    # Sort by number (handle questions without numbers)
+    def get_sort_key(question):
+        match = re.search(r'^(\d+)', question)
+        return int(match.group(1)) if match else 999  # Put unnumbered questions at the end
+    
+    questions.sort(key=get_sort_key)
     
     return questions
 
