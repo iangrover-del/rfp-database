@@ -859,9 +859,9 @@ def extract_numbered_questions(content: str) -> List[str]:
     
     questions = []
     
-    # Look for patterns like "1.", "2.", "3.", etc.
-    pattern1 = r'^(\d+)\.\s+(.+)$'
-    matches1 = re.findall(pattern1, content, re.MULTILINE)
+    # Look for patterns like "1.", "2.", "3.", etc. - capture multi-line questions
+    pattern1 = r'^(\d+)\.\s+(.+?)(?=^\d+\.\s+|^\d+\)\s+|^\d+:\s+|$)'
+    matches1 = re.findall(pattern1, content, re.MULTILINE | re.DOTALL)
     for num, question in matches1:
         # Clean up random spaces in the question
         cleaned_question = clean_question_text(question.strip())
@@ -874,9 +874,9 @@ def extract_numbered_questions(content: str) -> List[str]:
         else:
             questions.append(f"{num}. {cleaned_question}")
     
-    # Look for patterns like "1)", "2)", "3)", etc.
-    pattern2 = r'^(\d+)\)\s+(.+)$'
-    matches2 = re.findall(pattern2, content, re.MULTILINE)
+    # Look for patterns like "1)", "2)", "3)", etc. - capture multi-line questions
+    pattern2 = r'^(\d+)\)\s+(.+?)(?=^\d+\.\s+|^\d+\)\s+|^\d+:\s+|$)'
+    matches2 = re.findall(pattern2, content, re.MULTILINE | re.DOTALL)
     for num, question in matches2:
         # Clean up random spaces in the question
         cleaned_question = clean_question_text(question.strip())
@@ -889,9 +889,9 @@ def extract_numbered_questions(content: str) -> List[str]:
         else:
             questions.append(f"{num}) {cleaned_question}")
     
-    # Look for patterns like "1:", "2:", "3:", etc.
-    pattern3 = r'^(\d+):\s+(.+)$'
-    matches3 = re.findall(pattern3, content, re.MULTILINE)
+    # Look for patterns like "1:", "2:", "3:", etc. - capture multi-line questions
+    pattern3 = r'^(\d+):\s+(.+?)(?=^\d+\.\s+|^\d+\)\s+|^\d+:\s+|$)'
+    matches3 = re.findall(pattern3, content, re.MULTILINE | re.DOTALL)
     for num, question in matches3:
         # Clean up random spaces in the question
         cleaned_question = clean_question_text(question.strip())
@@ -1188,6 +1188,8 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
     if 'geo' in new_q_lower and 'access' in new_q_lower:
         if 'geo' in hist_q_lower and 'access' in hist_q_lower:
             score += 0.4  # Strong boost for geo access questions
+        elif 'rbac' in hist_q_lower or 'role-based' in hist_q_lower or 'access control' in hist_q_lower:
+            score -= 0.8  # Very strong penalty for IT security answers on geo access questions
         elif 'parity' in hist_q_lower or 'global' in hist_q_lower:
             score -= 0.3  # Penalty for wrong geo access answers
     
@@ -1195,8 +1197,8 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
     if 'sample' in new_q_lower and 'login' in new_q_lower:
         if 'sample' in hist_q_lower and 'login' in hist_q_lower:
             score += 0.4  # Strong boost for sample login questions
-        elif 'pricing' in hist_q_lower or 'pepm' in hist_q_lower:
-            score -= 0.5  # Strong penalty for pricing answers on login questions
+        elif 'pricing' in hist_q_lower or 'pepm' in hist_q_lower or 'utilization' in hist_q_lower:
+            score -= 0.8  # Very strong penalty for pricing answers on login questions
     
     # Fitness-for-duty questions
     if 'fitness' in new_q_lower and 'duty' in new_q_lower:
@@ -1211,6 +1213,13 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
             score += 0.4  # Strong boost for visit limit questions
         elif 'digital' in hist_q_lower and 'platform' in hist_q_lower:
             score -= 0.3  # Penalty for digital platform answers on visit limit questions
+    
+    # Financial/utilization questions
+    if 'financial' in new_q_lower and 'template' in new_q_lower:
+        if 'financial' in hist_q_lower and 'template' in hist_q_lower:
+            score += 0.4  # Strong boost for financial template questions
+        elif 'care coordinator' in hist_q_lower or 'clinician' in hist_q_lower:
+            score -= 0.6  # Penalty for care coordinator answers on financial questions
     
     return min(1.0, score)
 
