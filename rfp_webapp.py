@@ -1088,7 +1088,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 print(f"DEBUG: Direct match (score {score:.3f}): {qa_pair['question'][:100]}...")
                 print(f"DEBUG: Answer preview: {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score > 0.2:  # Higher threshold for better quality matches
+        if best_match and best_score > 0.15:  # Balanced threshold for quality matches
             # Additional filtering for specific question types
             question_lower = question.lower()
             answer_lower = best_match['answer'].lower()
@@ -1107,7 +1107,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                     best_match = None
                     best_score = 0
         
-        if best_match and best_score > 0.2:  # Check again after filtering
+        if best_match and best_score > 0.15:  # Check again after filtering
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1180,8 +1180,8 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
     # 5. Calculate semantic similarity based on phrase overlap
     phrase_similarity = len(common_phrases) / max(len(new_phrases), len(hist_phrases))
     
-    # 6. Require significant overlap for a good match
-    if phrase_similarity < 0.3:  # Need at least 30% phrase overlap
+    # 6. Require some overlap for a good match (but not too strict)
+    if phrase_similarity < 0.15:  # Need at least 15% phrase overlap
         return 0.0
     
     # 7. Boost score based on question type compatibility
@@ -1211,6 +1211,14 @@ def is_incompatible_question_types(new_question: str, historical_question: str) 
     
     # Implementation questions should never match pricing questions
     if ('implementation' in new_lower and 'timeline' in new_lower) and ('pricing' in hist_lower or 'pepm' in hist_lower):
+        return True
+    
+    # Fees/ROI questions should never match cultural care questions
+    if ('fees' in new_lower and 'risk' in new_lower) and ('cultural' in hist_lower or 'language' in hist_lower):
+        return True
+    
+    # Network count questions should never match language questions
+    if ('how many' in new_lower and ('coach' in new_lower or 'provider' in new_lower)) and ('language' in hist_lower or 'cultural' in hist_lower):
         return True
     
     return False
@@ -1439,6 +1447,14 @@ def get_fallback_answer(question: str, question_type: str) -> str:
         return "Modern Health typically implements programs within 4-6 weeks. Implementation includes setup, integration, and employee launch. Please provide your specific implementation timeline and plan details."
     elif 'sample' in question_lower and 'login' in question_lower:
         return "Modern Health can provide a demo login and sample access to showcase our platform capabilities. Please contact us to schedule a personalized demonstration of our mental health platform."
+    elif 'geo' in question_lower and 'access' in question_lower:
+        return "Modern Health provides global access to mental health services. Please provide specific geographic access requirements and census data details."
+    elif 'financial' in question_lower and 'template' in question_lower:
+        return "Modern Health can provide detailed financial templates and utilization assumptions. Please provide your specific financial requirements and utilization expectations."
+    elif 'fees' in question_lower and ('guaranteed' in question_lower or 'risk' in question_lower):
+        return "Modern Health offers flexible fee structures and performance guarantees. Please provide your specific requirements for fee guarantees and risk arrangements."
+    elif 'performance' in question_lower and 'guarantee' in question_lower:
+        return "Modern Health provides performance guarantees based on engagement and outcomes. Please provide your specific performance guarantee requirements."
     else:
         return "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements."
 
