@@ -1054,6 +1054,15 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
         key_phrases = extract_key_phrases(question_lower)
         print(f"DEBUG: Question {i+1} key phrases: {key_phrases[:10]}...")  # Show first 10 phrases
         
+        # Debug: show some sample Q&A pairs for this question
+        if i < 3:  # Only for first 3 questions to avoid spam
+            print(f"DEBUG: Sample Q&A pairs for question {i+1}:")
+            for j, qa in enumerate(all_qa_pairs[:5]):  # Show first 5 Q&A pairs
+                print(f"  {j+1}. Q: {qa['question'][:80]}...")
+                print(f"     A: {qa['answer'][:80]}...")
+                print(f"     Score: {calculate_direct_match_score(question, qa['question'], question_type, qa):.3f}")
+                print()
+        
         # Search through ALL Q&A pairs but filter out obviously irrelevant ones
         for qa_pair in all_qa_pairs:
             # Skip if we've already used this exact answer
