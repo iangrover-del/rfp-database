@@ -1211,7 +1211,7 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
         if 'geo' in hist_q_lower and 'access' in hist_q_lower:
             score += 0.4  # Strong boost for geo access questions
         elif 'rbac' in hist_q_lower or 'role-based' in hist_q_lower or 'access control' in hist_q_lower:
-            score -= 0.8  # Very strong penalty for IT security answers on geo access questions
+            score = 0.0  # Completely reject IT security answers for geo access questions
         elif 'parity' in hist_q_lower or 'global' in hist_q_lower:
             score -= 0.3  # Penalty for wrong geo access answers
     
@@ -1220,7 +1220,7 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
         if 'sample' in hist_q_lower and 'login' in hist_q_lower:
             score += 0.4  # Strong boost for sample login questions
         elif 'pricing' in hist_q_lower or 'pepm' in hist_q_lower or 'utilization' in hist_q_lower:
-            score -= 0.8  # Very strong penalty for pricing answers on login questions
+            score = 0.0  # Completely reject pricing answers for login questions
     
     # Fitness-for-duty questions
     if 'fitness' in new_q_lower and 'duty' in new_q_lower:
@@ -1467,6 +1467,8 @@ def get_fallback_answer(question: str, question_type: str) -> str:
         return "Modern Health supports leave of absence processes and critical incident stress management. Please provide specific details about your LOA process flows and CISM requirements."
     elif 'implementation' in question_lower and 'timeline' in question_lower:
         return "Modern Health typically implements programs within 4-6 weeks. Implementation includes setup, integration, and employee launch. Please provide your specific implementation timeline and plan details."
+    elif 'sample' in question_lower and 'login' in question_lower:
+        return "Modern Health can provide a demo login and sample access to showcase our platform capabilities. Please contact us to schedule a personalized demonstration of our mental health platform."
     else:
         return "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements."
 
