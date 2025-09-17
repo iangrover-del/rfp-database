@@ -1269,6 +1269,19 @@ def find_fallback_match(question: str, all_qa_pairs: List[dict], question_type: 
         if question_type == classify_question_type(hist_q_lower):
             score += 0.3
         
+        # Penalty for obviously wrong matches
+        if 'sample' in question_lower and 'login' in question_lower:
+            if '2025' in hist_q_lower or 'roadmap' in hist_q_lower or 'innovation' in hist_q_lower:
+                score = 0.0  # Completely reject roadmap answers for login questions
+        
+        if 'fitness' in question_lower and 'duty' in question_lower:
+            if 'adaptive care' in hist_q_lower or 'well-being assessment' in hist_q_lower:
+                score = 0.0  # Completely reject adaptive care answers for fitness-for-duty questions
+        
+        if 'leave' in question_lower and 'absence' in question_lower:
+            if 'manager training' in hist_q_lower and 'loa' not in hist_q_lower:
+                score = 0.0  # Completely reject generic manager training for LOA questions
+        
         # Boost for any keyword overlap
         question_words = set(question_lower.split())
         hist_words = set(hist_q_lower.split())
@@ -1284,8 +1297,8 @@ def find_fallback_match(question: str, all_qa_pairs: List[dict], question_type: 
             best_score = score
             best_fallback = qa_pair
     
-    # Only return if we found a reasonable fallback (score > 0.2)
-    return best_fallback if best_score > 0.2 else None
+    # Only return if we found a reasonable fallback (score > 0.3) - be more selective
+    return best_fallback if best_score > 0.3 else None
 
 def extract_key_phrases(question: str) -> List[str]:
     """Extract key phrases from a question for matching"""
@@ -1510,7 +1523,7 @@ def get_fallback_answer(question: str, question_type: str) -> str:
     elif 'implementation' in question_lower and 'timeline' in question_lower:
         return "Modern Health typically implements programs within 4-6 weeks. Implementation includes setup, integration, and employee launch. Please provide your specific implementation timeline and plan details."
     elif 'sample' in question_lower and 'login' in question_lower:
-        return "Modern Health can provide a demo login and sample access to showcase our platform capabilities. Please contact us to schedule a personalized demonstration of our mental health platform."
+        return "Modern Health can provide a sample login or demo environment to showcase our platform capabilities. Please contact us to schedule a personalized demonstration of our mental health platform."
     elif 'geo' in question_lower and 'access' in question_lower:
         return "Modern Health provides global access to mental health services. Please provide specific geographic access requirements and census data details."
     elif 'financial' in question_lower and 'template' in question_lower:
@@ -1527,7 +1540,9 @@ def clean_brand_names(text: str) -> str:
     # List of competitor names to remove
     brand_names = [
         'Henry Schein', 'Voya Financial', 'Voya', 'Barclays', 'Boston Scientific', 
-        'Mattel', 'Sunrun', 'Stripe', 'Uber', 'Palo Alto Networks', 'Electronic Arts'
+        'Mattel', 'Sunrun', 'Stripe', 'Uber', 'Palo Alto Networks', 'Electronic Arts',
+        'McDermott Will & Emery', 'McDermott', 'AMD', 'JET', 'Central Texas Food Bank',
+        'MWE', 'Loopio', 'EXHIBIT', 'Wellness Platform', 'PROPOSAL WORKBOOK'
     ]
     
     cleaned_text = text
