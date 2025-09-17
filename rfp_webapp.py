@@ -971,13 +971,25 @@ def get_question_embedding(question: str) -> List[float]:
     """Get OpenAI embedding for a question"""
     try:
         import openai
-        response = openai.embeddings.create(
-            input=question,
-            model="text-embedding-ada-002"
-        )
-        return response.data[0].embedding
+        import time
+        
+        # Add timeout and retry logic
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = openai.embeddings.create(
+                    input=question,
+                    model="text-embedding-ada-002"
+                )
+                return response.data[0].embedding
+            except Exception as e:
+                print(f"DEBUG: Embedding attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(1)  # Wait 1 second before retry
+                else:
+                    raise e
     except Exception as e:
-        print(f"DEBUG: Error getting embedding: {e}")
+        print(f"DEBUG: Error getting embedding after {max_retries} attempts: {e}")
         return None
 
 def calculate_cosine_similarity(embedding1: List[float], embedding2: List[float]) -> float:
@@ -1085,25 +1097,47 @@ def find_matching_answers_embeddings(questions: List[str], existing_submissions:
     # For each new question, find the best matching answer using embeddings
     used_answers = set()
     
-    for i, question in enumerate(questions[:20]):  # Process first 20 questions
-        print(f"DEBUG: Processing question {i+1}: {question[:100]}...")
+    for i, question in enumerate(questions[:10]):  # Process first 10 questions to reduce time
+        print(f"DEBUG: Processing question {i+1}/10: {question[:100]}...")
         
         # Get embedding for the new question
         try:
             new_question_embedding = get_question_embedding(question)
             if new_question_embedding is None:
                 print(f"DEBUG: Failed to get embedding for question {i+1}")
+                # Provide fallback answer
+                fallback_answer = get_fallback_answer(question, classify_question_type(question.lower()))
+                matches.append({
+                    "question": question,
+                    "suggested_answer": fallback_answer,
+                    "confidence": 10,
+                    "source_rfp": "None",
+                    "category": "no_match",
+                    "source_status": "unknown",
+                    "matching_reason": "Failed to get embedding"
+                })
                 continue
         except Exception as e:
             print(f"DEBUG: Error getting embedding for question {i+1}: {e}")
+            # Provide fallback answer
+            fallback_answer = get_fallback_answer(question, classify_question_type(question.lower()))
+            matches.append({
+                "question": question,
+                "suggested_answer": fallback_answer,
+                "confidence": 10,
+                "source_rfp": "None",
+                "category": "no_match",
+                "source_status": "unknown",
+                "matching_reason": f"Embedding error: {str(e)[:50]}"
+            })
             continue
         
         best_match = None
         best_similarity = 0
         match_type = "none"
         
-        # Find the most similar historical question
-        for qa_pair in all_qa_pairs:
+        # Find the most similar historical question (limit to first 100 for speed)
+        for qa_pair in all_qa_pairs[:100]:
             # Skip if we've already used this exact answer
             answer_hash = hash(qa_pair['answer'][:200])
             if answer_hash in used_answers:
