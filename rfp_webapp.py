@@ -1097,7 +1097,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 print(f"DEBUG: Direct match (score {score:.3f}): {qa_pair['question'][:100]}...")
                 print(f"DEBUG: Answer preview: {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score > 0.15:  # Balanced threshold for quality matches
+        if best_match and best_score > 0.2:  # Keep strict threshold for quality
             # Additional filtering for specific question types
             question_lower = question.lower()
             answer_lower = best_match['answer'].lower()
@@ -1116,7 +1116,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                     best_match = None
                     best_score = 0
         
-        if best_match and best_score > 0.15:  # Check again after filtering
+        if best_match and best_score > 0.2:  # Check again after filtering
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1137,18 +1137,31 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 "matching_reason": f"{match_type.title()} match (score: {best_score:.3f})"
             })
         else:
-            # Provide a more helpful fallback answer based on question type
-            fallback_answer = get_fallback_answer(question, question_type)
-            print(f"DEBUG: No match found for question {i+1}, best score was {best_score:.3f}")
-            matches.append({
-                "question": question,
-                "suggested_answer": fallback_answer,
-                "confidence": 10,
-                "source_rfp": "None",
-                "category": "no_match",
-                "source_status": "unknown",
-                "matching_reason": f"No match found (best score: {best_score:.3f})"
-            })
+            # Try fallback matching - find the best available answer even if not perfect
+            fallback_match = find_fallback_match(question, all_qa_pairs, question_type)
+            if fallback_match:
+                matches.append({
+                    "question": question,
+                    "suggested_answer": clean_brand_names(fallback_match['answer']),
+                    "confidence": 15,  # Low confidence but better than generic fallback
+                    "source_rfp": fallback_match['source'],
+                    "category": "fallback_match",
+                    "source_status": fallback_match['status'],
+                    "matching_reason": f"Fallback match (best available answer)"
+                })
+            else:
+                # Provide a more helpful fallback answer based on question type
+                fallback_answer = get_fallback_answer(question, question_type)
+                print(f"DEBUG: No match found for question {i+1}, best score was {best_score:.3f}")
+                matches.append({
+                    "question": question,
+                    "suggested_answer": fallback_answer,
+                    "confidence": 10,
+                    "source_rfp": "None",
+                    "category": "no_match",
+                    "source_status": "unknown",
+                    "matching_reason": f"No match found (best score: {best_score:.3f})"
+                })
     
     return {
         "matches": matches,
@@ -1189,8 +1202,8 @@ def calculate_direct_match_score(new_question: str, historical_question: str, qu
     # 5. Calculate semantic similarity based on phrase overlap
     phrase_similarity = len(common_phrases) / max(len(new_phrases), len(hist_phrases))
     
-    # 6. Require some overlap for a good match (but not too strict)
-    if phrase_similarity < 0.15:  # Need at least 15% phrase overlap
+    # 6. Require minimal overlap for a good match (very flexible)
+    if phrase_similarity < 0.05:  # Need at least 5% phrase overlap
         return 0.0
     
     # 7. Boost score based on question type compatibility
@@ -1231,6 +1244,48 @@ def is_incompatible_question_types(new_question: str, historical_question: str) 
         return True
     
     return False
+
+def find_fallback_match(question: str, all_qa_pairs: List[dict], question_type: str) -> dict:
+    """Find the best available answer when strict matching fails"""
+    question_lower = question.lower()
+    best_fallback = None
+    best_score = 0
+    
+    for qa_pair in all_qa_pairs:
+        # Skip obviously irrelevant answers
+        answer_lower = qa_pair['answer'].lower()
+        if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
+            continue
+        
+        # Skip if answer is just a name/email
+        if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
+            continue
+        
+        # Calculate a simple fallback score based on question type
+        score = 0.0
+        hist_q_lower = qa_pair['question'].lower()
+        
+        # Boost for same question type
+        if question_type == classify_question_type(hist_q_lower):
+            score += 0.3
+        
+        # Boost for any keyword overlap
+        question_words = set(question_lower.split())
+        hist_words = set(hist_q_lower.split())
+        common_words = question_words & hist_words
+        if common_words:
+            score += len(common_words) * 0.1
+        
+        # Boost for longer, more detailed answers
+        if len(qa_pair['answer']) > 100:
+            score += 0.1
+        
+        if score > best_score:
+            best_score = score
+            best_fallback = qa_pair
+    
+    # Only return if we found a reasonable fallback (score > 0.2)
+    return best_fallback if best_score > 0.2 else None
 
 def extract_key_phrases(question: str) -> List[str]:
     """Extract key phrases from a question for matching"""
