@@ -967,6 +967,40 @@ def clean_question_text(text: str) -> str:
     
     return text.strip()
 
+def get_question_embedding(question: str) -> List[float]:
+    """Get OpenAI embedding for a question"""
+    try:
+        import openai
+        response = openai.embeddings.create(
+            input=question,
+            model="text-embedding-ada-002"
+        )
+        return response.data[0].embedding
+    except Exception as e:
+        print(f"DEBUG: Error getting embedding: {e}")
+        return None
+
+def calculate_cosine_similarity(embedding1: List[float], embedding2: List[float]) -> float:
+    """Calculate cosine similarity between two embeddings"""
+    try:
+        import numpy as np
+        # Convert to numpy arrays
+        vec1 = np.array(embedding1)
+        vec2 = np.array(embedding2)
+        
+        # Calculate cosine similarity
+        dot_product = np.dot(vec1, vec2)
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+        
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+        
+        return dot_product / (norm1 * norm2)
+    except Exception as e:
+        print(f"DEBUG: Error calculating cosine similarity: {e}")
+        return 0.0
+
 def is_table_question(question: str) -> bool:
     """Check if a question is asking for table completion (which we should skip for PDFs)"""
     question_lower = question.lower()
@@ -991,20 +1025,19 @@ def is_table_question(question: str) -> bool:
     
     return any(indicator in question_lower for indicator in table_indicators)
 
-def find_matching_answers_semantic(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
-    """Find matching answers using exact question matching first, then semantic similarity"""
+def find_matching_answers_embeddings(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
+    """Find matching answers using OpenAI embeddings for semantic similarity"""
     
     if not existing_submissions:
         return {
             "matches": [], 
-            "confidence": 0,
-            "error": "No historical RFPs found in database. Please upload some historical RFPs first to build a knowledge base.",
-            "suggestion": "Go to 'Upload Historical RFPs' to add your past successful proposals."
+            "overall_confidence": 0,
+            "total_questions_found": len(questions),
+            "questions_answered": 0,
+            "debug_info": {"qa_pairs_found": 0, "submissions_processed": 0}
         }
     
-    matches = []
-    
-    # Extract all question-answer pairs from historical submissions
+    # Extract all Q&A pairs from existing submissions
     all_qa_pairs = []
     for submission in existing_submissions:
         if len(submission) > 4 and submission[4]:
@@ -1036,39 +1069,44 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
                 continue
     
-    print(f"DEBUG: Found {len(all_qa_pairs)} question-answer pairs from historical RFPs")
+    print(f"DEBUG: Found {len(all_qa_pairs)} Q&A pairs from {len(existing_submissions)} submissions")
     
-    # For each new question, find the best matching answer
+    if not all_qa_pairs:
+        return {
+            "matches": [], 
+            "overall_confidence": 0,
+            "total_questions_found": len(questions),
+            "questions_answered": 0,
+            "debug_info": {"qa_pairs_found": 0, "submissions_processed": len(existing_submissions)}
+        }
+    
+    matches = []
+    
+    # For each new question, find the best matching answer using embeddings
     used_answers = set()
     
-    for i, question in enumerate(questions[:20]):  # Process more questions
+    for i, question in enumerate(questions[:20]):  # Process first 20 questions
         print(f"DEBUG: Processing question {i+1}: {question[:100]}...")
+        
+        # Get embedding for the new question
+        try:
+            new_question_embedding = get_question_embedding(question)
+            if new_question_embedding is None:
+                print(f"DEBUG: Failed to get embedding for question {i+1}")
+                continue
+        except Exception as e:
+            print(f"DEBUG: Error getting embedding for question {i+1}: {e}")
+            continue
+        
         best_match = None
-        best_score = 0
+        best_similarity = 0
         match_type = "none"
         
-        question_lower = question.lower()
-        question_type = classify_question_type(question_lower)
-        
-        # Debug: show key phrases for this question
-        key_phrases = extract_key_phrases(question_lower)
-        print(f"DEBUG: Question {i+1} key phrases: {key_phrases[:10]}...")  # Show first 10 phrases
-        
-        # Debug: show some sample Q&A pairs for this question
-        if i < 3:  # Only for first 3 questions to avoid spam
-            print(f"DEBUG: Sample Q&A pairs for question {i+1}:")
-            for j, qa in enumerate(all_qa_pairs[:5]):  # Show first 5 Q&A pairs
-                print(f"  {j+1}. Q: {qa['question'][:80]}...")
-                print(f"     A: {qa['answer'][:80]}...")
-                print(f"     Score: {calculate_direct_match_score(question, qa['question'], question_type, qa):.3f}")
-                print()
-        
-        # Search through ALL Q&A pairs but filter out obviously irrelevant ones
+        # Find the most similar historical question
         for qa_pair in all_qa_pairs:
             # Skip if we've already used this exact answer
             answer_hash = hash(qa_pair['answer'][:200])
             if answer_hash in used_answers:
-                print(f"DEBUG: Skipping already used answer: {qa_pair['answer'][:50]}...")
                 continue
             
             # Skip obviously irrelevant answers
@@ -1076,47 +1114,29 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
             if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
                 continue
             
-            # Skip if answer is just a name/email (like "Matt Burton, General Counsel matt@joinmodernhealth.com")
+            # Skip if answer is just a name/email
             if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
                 continue
             
-            # 1. Try exact question matching first
-            if question_lower == qa_pair['question'].lower():
+            # Get embedding for historical question
+            try:
+                hist_question_embedding = get_question_embedding(qa_pair['question'])
+                if hist_question_embedding is None:
+                    continue
+            except Exception as e:
+                print(f"DEBUG: Error getting embedding for historical question: {e}")
+                continue
+            
+            # Calculate cosine similarity
+            similarity = calculate_cosine_similarity(new_question_embedding, hist_question_embedding)
+            
+            if similarity > best_similarity:
+                best_similarity = similarity
                 best_match = qa_pair
-                best_score = 1.0
-                match_type = "exact"
-                print(f"DEBUG: EXACT MATCH found: {qa_pair['question'][:100]}...")
-                break
-            
-            # 2. Try partial question matching (if question contains key phrases)
-            score = calculate_direct_match_score(question, qa_pair['question'], question_type, qa_pair)
-            if score > best_score:
-                best_score = score
-                best_match = qa_pair
-                match_type = "direct"
-                print(f"DEBUG: Direct match (score {score:.3f}): {qa_pair['question'][:100]}...")
-                print(f"DEBUG: Answer preview: {qa_pair['answer'][:100]}...")
+                match_type = "embedding"
         
-        if best_match and best_score > 0.2:  # Keep strict threshold for quality
-            # Additional filtering for specific question types
-            question_lower = question.lower()
-            answer_lower = best_match['answer'].lower()
-            
-            # Skip if login question gets pricing answer
-            if 'sample' in question_lower and 'login' in question_lower:
-                if 'pricing' in answer_lower or 'pepm' in answer_lower or 'utilization' in answer_lower:
-                    print(f"DEBUG: Skipping pricing answer for login question")
-                    best_match = None
-                    best_score = 0
-            
-            # Skip if geo access question gets IT security answer
-            if 'geo' in question_lower and 'access' in question_lower:
-                if 'rbac' in answer_lower or 'role-based' in answer_lower or 'access control' in answer_lower:
-                    print(f"DEBUG: Skipping IT security answer for geo access question")
-                    best_match = None
-                    best_score = 0
-        
-        if best_match and best_score > 0.2:  # Check again after filtering
+        # Apply similarity threshold
+        if best_match and best_similarity > 0.7:  # High threshold for quality matches
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1130,38 +1150,25 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
             matches.append({
                 "question": question,
                 "suggested_answer": cleaned_answer,
-                "confidence": min(95, int(best_score * 100)),
+                "confidence": min(95, int(best_similarity * 100)),
                 "source_rfp": best_match['source'],
                 "category": "matched",
                 "source_status": best_match['status'],
-                "matching_reason": f"{match_type.title()} match (score: {best_score:.3f})"
+                "matching_reason": f"Embedding match (similarity: {best_similarity:.3f})"
             })
         else:
-            # Try fallback matching - find the best available answer even if not perfect
-            fallback_match = find_fallback_match(question, all_qa_pairs, question_type)
-            if fallback_match:
-                matches.append({
-                    "question": question,
-                    "suggested_answer": clean_brand_names(fallback_match['answer']),
-                    "confidence": 15,  # Low confidence but better than generic fallback
-                    "source_rfp": fallback_match['source'],
-                    "category": "fallback_match",
-                    "source_status": fallback_match['status'],
-                    "matching_reason": f"Fallback match (best available answer)"
-                })
-            else:
-                # Provide a more helpful fallback answer based on question type
-                fallback_answer = get_fallback_answer(question, question_type)
-                print(f"DEBUG: No match found for question {i+1}, best score was {best_score:.3f}")
-                matches.append({
-                    "question": question,
-                    "suggested_answer": fallback_answer,
-                    "confidence": 10,
-                    "source_rfp": "None",
-                    "category": "no_match",
-                    "source_status": "unknown",
-                    "matching_reason": f"No match found (best score: {best_score:.3f})"
-                })
+            # Provide a fallback answer based on question type
+            fallback_answer = get_fallback_answer(question, classify_question_type(question.lower()))
+            print(f"DEBUG: No good match found for question {i+1}, best similarity was {best_similarity:.3f}")
+            matches.append({
+                "question": question,
+                "suggested_answer": fallback_answer,
+                "confidence": 10,
+                "source_rfp": "None",
+                "category": "no_match",
+                "source_status": "unknown",
+                "matching_reason": f"No match found (best similarity: {best_similarity:.3f})"
+            })
     
     return {
         "matches": matches,
@@ -1269,25 +1276,25 @@ def find_fallback_match(question: str, all_qa_pairs: List[dict], question_type: 
         if question_type == classify_question_type(hist_q_lower):
             score += 0.3
         
-        # Penalty for obviously wrong matches - check the ANSWER content, not question
+        # Skip obviously wrong matches - check the ANSWER content, not question
         answer_lower = qa_pair['answer'].lower()
-        
         if 'sample' in question_lower and 'login' in question_lower:
             if '2025' in answer_lower or 'roadmap' in answer_lower or 'innovation' in answer_lower:
-                score = 0.0  # Completely reject roadmap answers for login questions
+                print(f"DEBUG: Skipping 2025/roadmap answer for login question: {answer_lower[:100]}...")
+                continue  # Skip this answer entirely for login questions
         
         if 'fitness' in question_lower and 'duty' in question_lower:
-            if 'adaptive care' in answer_lower or 'well-being assessment' in answer_lower:
-                score = 0.0  # Completely reject adaptive care answers for fitness-for-duty questions
+            if 'adaptive care' in answer_lower or 'well-being assessment' in answer_lower or 'vision' in answer_lower:
+                continue  # Skip this answer entirely for fitness-for-duty questions
         
         if 'leave' in question_lower and 'absence' in question_lower:
             if 'manager training' in answer_lower and 'loa' not in answer_lower:
-                score = 0.0  # Completely reject generic manager training for LOA questions
+                continue  # Skip this answer entirely for LOA questions
         
-        # Penalty for network questions getting generic platform descriptions
+        # Skip network questions getting generic platform descriptions
         if 'how many' in question_lower and ('coach' in question_lower or 'provider' in question_lower or 'therapist' in question_lower):
             if 'digital platform' in answer_lower and '86,000' not in answer_lower and 'providers' not in answer_lower:
-                score = 0.0  # Reject generic platform descriptions for network count questions
+                continue  # Skip generic platform descriptions for network count questions
         
         # Boost for any keyword overlap
         question_words = set(question_lower.split())
@@ -2485,7 +2492,7 @@ def show_process_page(client):
                             st.write(f"  - Error parsing data")
                 
                 # Find matching answers using semantic similarity
-                matches = find_matching_answers_semantic(questions, existing_submissions)
+                matches = find_matching_answers_embeddings(questions, existing_submissions)
                 
                 # Show debug info from semantic matching
                 if "debug_info" in matches:
