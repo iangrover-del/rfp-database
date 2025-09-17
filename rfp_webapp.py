@@ -1088,7 +1088,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                 print(f"DEBUG: Direct match (score {score:.3f}): {qa_pair['question'][:100]}...")
                 print(f"DEBUG: Answer preview: {qa_pair['answer'][:100]}...")
         
-        if best_match and best_score > 0.1:  # Higher threshold to avoid bad matches
+        if best_match and best_score > 0.2:  # Higher threshold for better quality matches
             # Additional filtering for specific question types
             question_lower = question.lower()
             answer_lower = best_match['answer'].lower()
@@ -1107,7 +1107,7 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
                     best_match = None
                     best_score = 0
         
-        if best_match and best_score > 0.1:  # Check again after filtering
+        if best_match and best_score > 0.2:  # Check again after filtering
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1154,96 +1154,66 @@ def find_matching_answers_semantic(questions: List[str], existing_submissions: L
     }
 
 def calculate_direct_match_score(new_question: str, historical_question: str, question_type: str, qa_pair: dict) -> float:
-    """Calculate direct matching score based on key phrases and question type"""
+    """Calculate direct matching score based on semantic similarity and question type"""
     new_q_lower = new_question.lower()
     hist_q_lower = historical_question.lower()
     
     score = 0.0
     
-    # Extract key phrases from the new question
-    key_phrases = extract_key_phrases(new_q_lower)
+    # 1. Exact question match (highest confidence)
+    if new_q_lower == hist_q_lower:
+        return 1.0
     
-    # Check how many key phrases match in the historical question
-    matches = 0
-    for phrase in key_phrases:
-        if phrase in hist_q_lower:
-            matches += 1
+    # 2. Check for completely incompatible question types first
+    if is_incompatible_question_types(new_question, historical_question):
+        return 0.0
     
-    if matches > 0:
-        # Give more weight to matches - even a few matches should give a decent score
-        score = min(0.8, matches / max(3, len(key_phrases) * 0.3))  # More generous scoring
+    # 3. Extract key phrases from both questions
+    new_phrases = extract_key_phrases(new_q_lower)
+    hist_phrases = extract_key_phrases(hist_q_lower)
     
-    # More specific keyword matching based on question content
-    # Look for exact topic matches
-    if 'dependent' in new_q_lower and 'definition' in new_q_lower:
-        if 'dependent' in hist_q_lower and ('definition' in hist_q_lower or 'eligible' in hist_q_lower):
-            score += 0.4  # Strong boost for dependent definition questions
-        elif 'file' in hist_q_lower or 'eligibility' in hist_q_lower:
-            score -= 0.3  # Penalty for file/eligibility answers on dependent definition questions
+    # 4. Calculate phrase overlap
+    common_phrases = set(new_phrases) & set(hist_phrases)
+    if not common_phrases:
+        return 0.0
     
-    if 'eligibility' in new_q_lower and 'file' in new_q_lower:
-        if 'eligibility' in hist_q_lower and 'file' in hist_q_lower:
-            score += 0.4  # Strong boost for eligibility file questions
+    # 5. Calculate semantic similarity based on phrase overlap
+    phrase_similarity = len(common_phrases) / max(len(new_phrases), len(hist_phrases))
     
-    if 'fitness' in new_q_lower and 'duty' in new_q_lower:
-        if 'fitness' in hist_q_lower and 'duty' in hist_q_lower:
-            score += 0.4  # Strong boost for fitness-for-duty questions
+    # 6. Require significant overlap for a good match
+    if phrase_similarity < 0.3:  # Need at least 30% phrase overlap
+        return 0.0
     
-    if 'leave' in new_q_lower and 'absence' in new_q_lower:
-        if 'leave' in hist_q_lower and 'absence' in hist_q_lower:
-            score += 0.4  # Strong boost for LOA questions
-    
-    if 'implementation' in new_q_lower and 'timeline' in new_q_lower:
-        if 'implementation' in hist_q_lower and 'timeline' in hist_q_lower:
-            score += 0.4  # Strong boost for implementation timeline questions
-    
-    # Network and provider questions - be more specific
-    if any(word in new_q_lower for word in ['network', 'provider', 'coach', 'therapist', 'psychiatrist', 'table']):
-        if any(word in hist_q_lower for word in ['network', 'provider', 'coach', 'therapist', 'psychiatrist']):
-            # Check if the historical answer actually contains numbers/counts
-            if any(char.isdigit() for char in qa_pair['answer']):
-                score += 0.4  # Strong boost for network/provider questions with numbers
-            else:
-                score -= 0.2  # Penalty for network questions without actual counts
-    
-    # Geo access questions
-    if 'geo' in new_q_lower and 'access' in new_q_lower:
-        if 'geo' in hist_q_lower and 'access' in hist_q_lower:
-            score += 0.4  # Strong boost for geo access questions
-        elif 'rbac' in hist_q_lower or 'role-based' in hist_q_lower or 'access control' in hist_q_lower:
-            score = 0.0  # Completely reject IT security answers for geo access questions
-        elif 'parity' in hist_q_lower or 'global' in hist_q_lower:
-            score -= 0.3  # Penalty for wrong geo access answers
-    
-    # Sample login questions
-    if 'sample' in new_q_lower and 'login' in new_q_lower:
-        if 'sample' in hist_q_lower and 'login' in hist_q_lower:
-            score += 0.4  # Strong boost for sample login questions
-        elif 'pricing' in hist_q_lower or 'pepm' in hist_q_lower or 'utilization' in hist_q_lower:
-            score = 0.0  # Completely reject pricing answers for login questions
-    
-    # Fitness-for-duty questions
-    if 'fitness' in new_q_lower and 'duty' in new_q_lower:
-        if 'fitness' in hist_q_lower and 'duty' in hist_q_lower:
-            score += 0.4  # Strong boost for fitness-for-duty questions
-        elif 'employee' in hist_q_lower and 'count' in hist_q_lower:
-            score -= 0.4  # Penalty for employee count answers on fitness-for-duty questions
-    
-    # Visit limit questions
-    if 'visit' in new_q_lower and 'limit' in new_q_lower:
-        if 'visit' in hist_q_lower and 'limit' in hist_q_lower:
-            score += 0.4  # Strong boost for visit limit questions
-        elif 'digital' in hist_q_lower and 'platform' in hist_q_lower:
-            score -= 0.3  # Penalty for digital platform answers on visit limit questions
-    
-    # Financial/utilization questions
-    if 'financial' in new_q_lower and 'template' in new_q_lower:
-        if 'financial' in hist_q_lower and 'template' in hist_q_lower:
-            score += 0.4  # Strong boost for financial template questions
-        elif 'care coordinator' in hist_q_lower or 'clinician' in hist_q_lower:
-            score -= 0.6  # Penalty for care coordinator answers on financial questions
+    # 7. Boost score based on question type compatibility
+    if question_type == classify_question_type(hist_q_lower):
+        score = phrase_similarity * 0.8  # Good match
+    else:
+        score = phrase_similarity * 0.4  # Weaker match
     
     return min(1.0, score)
+
+def is_incompatible_question_types(new_question: str, historical_question: str) -> bool:
+    """Check if two questions are completely incompatible (should never match)"""
+    new_lower = new_question.lower()
+    hist_lower = historical_question.lower()
+    
+    # Login questions should never match pricing questions
+    if ('sample' in new_lower and 'login' in new_lower) and ('pricing' in hist_lower or 'pepm' in hist_lower):
+        return True
+    
+    # Geo access questions should never match IT security questions
+    if ('geo' in new_lower and 'access' in new_lower) and ('rbac' in hist_lower or 'role-based' in hist_lower):
+        return True
+    
+    # Network questions should never match pricing questions
+    if ('network' in new_lower or 'provider' in new_lower) and ('pricing' in hist_lower or 'pepm' in hist_lower):
+        return True
+    
+    # Implementation questions should never match pricing questions
+    if ('implementation' in new_lower and 'timeline' in new_lower) and ('pricing' in hist_lower or 'pepm' in hist_lower):
+        return True
+    
+    return False
 
 def extract_key_phrases(question: str) -> List[str]:
     """Extract key phrases from a question for matching"""
