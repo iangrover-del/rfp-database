@@ -1269,18 +1269,25 @@ def find_fallback_match(question: str, all_qa_pairs: List[dict], question_type: 
         if question_type == classify_question_type(hist_q_lower):
             score += 0.3
         
-        # Penalty for obviously wrong matches
+        # Penalty for obviously wrong matches - check the ANSWER content, not question
+        answer_lower = qa_pair['answer'].lower()
+        
         if 'sample' in question_lower and 'login' in question_lower:
-            if '2025' in hist_q_lower or 'roadmap' in hist_q_lower or 'innovation' in hist_q_lower:
+            if '2025' in answer_lower or 'roadmap' in answer_lower or 'innovation' in answer_lower:
                 score = 0.0  # Completely reject roadmap answers for login questions
         
         if 'fitness' in question_lower and 'duty' in question_lower:
-            if 'adaptive care' in hist_q_lower or 'well-being assessment' in hist_q_lower:
+            if 'adaptive care' in answer_lower or 'well-being assessment' in answer_lower:
                 score = 0.0  # Completely reject adaptive care answers for fitness-for-duty questions
         
         if 'leave' in question_lower and 'absence' in question_lower:
-            if 'manager training' in hist_q_lower and 'loa' not in hist_q_lower:
+            if 'manager training' in answer_lower and 'loa' not in answer_lower:
                 score = 0.0  # Completely reject generic manager training for LOA questions
+        
+        # Penalty for network questions getting generic platform descriptions
+        if 'how many' in question_lower and ('coach' in question_lower or 'provider' in question_lower or 'therapist' in question_lower):
+            if 'digital platform' in answer_lower and '86,000' not in answer_lower and 'providers' not in answer_lower:
+                score = 0.0  # Reject generic platform descriptions for network count questions
         
         # Boost for any keyword overlap
         question_words = set(question_lower.split())
@@ -1517,9 +1524,9 @@ def get_fallback_answer(question: str, question_type: str) -> str:
     elif 'eligibility' in question_lower and 'file' in question_lower:
         return "Modern Health requires eligibility files containing employee information (name, email, ID). Files can be sent monthly, biweekly, or weekly via Box or SFTP. We integrate with Workday and other HR systems."
     elif 'fitness' in question_lower and 'duty' in question_lower:
-        return "Modern Health can provide information about fitness-for-duty processes and standards. Please provide specific details about your fitness-for-duty requirements and delivery times."
+        return "Modern Health can provide fitness-for-duty assessments and processes. We work with licensed providers who can conduct fitness-for-duty evaluations according to your organization's standards and requirements. Please provide specific details about your fitness-for-duty requirements and delivery timeframes."
     elif 'leave' in question_lower and 'absence' in question_lower:
-        return "Modern Health supports leave of absence processes and critical incident stress management. Please provide specific details about your LOA process flows and CISM requirements."
+        return "Modern Health supports leave of absence processes and critical incident stress management (CISM). We provide manager referrals, LOA process flows, and CISM services through our network of licensed providers. Please provide specific details about your LOA process flows and CISM requirements."
     elif 'implementation' in question_lower and 'timeline' in question_lower:
         return "Modern Health typically implements programs within 4-6 weeks. Implementation includes setup, integration, and employee launch. Please provide your specific implementation timeline and plan details."
     elif 'sample' in question_lower and 'login' in question_lower:
