@@ -1181,46 +1181,65 @@ def calculate_smart_match_score(new_question: str, historical_question: str, que
     return max(0.0, min(1.0, base_score))
 
 def is_answer_relevant_to_question(question_lower: str, answer_lower: str) -> bool:
-    """Check if an answer is relevant to the question being asked"""
+    """Check if an answer is relevant to the question being asked - STRICT VERSION"""
     
-    # Geo Access questions should have geographic/network info
+    # Geo Access questions should have specific geographic/network info
     if 'geo access' in question_lower:
-        return any(word in answer_lower for word in ['network', 'coverage', 'geographic', 'states', 'locations', 'providers', 'access'])
+        return any(word in answer_lower for word in ['network', 'coverage', 'geographic', 'states', 'locations', 'providers', 'census', 'zip', 'county', 'region', 'nationwide', '50 states'])
     
-    # Sample login questions should have login/demo info
+    # Sample login questions should have specific login/demo info
     if 'sample login' in question_lower or 'demo' in question_lower:
-        return any(word in answer_lower for word in ['login', 'demo', 'access', 'portal', 'platform', 'app', 'website'])
+        return any(word in answer_lower for word in ['login', 'demo', 'portal', 'platform', 'app', 'website', 'username', 'password', 'credentials', 'access'])
     
-    # Visit limit questions should have visit/limit info
+    # Visit limit questions should have specific visit/limit info
     if 'visit limit' in question_lower:
-        return any(word in answer_lower for word in ['visit', 'limit', 'session', 'appointment', 'care', 'therapy'])
+        return any(word in answer_lower for word in ['visit', 'limit', 'session', 'appointment', 'care', 'therapy', 'maximum', 'number', 'count'])
     
-    # Network provider count questions should have numbers
+    # Network provider count questions should have specific numbers or provider info
     if any(word in question_lower for word in ['how many', 'total', 'in-person', 'virtual']) and any(word in question_lower for word in ['coaches', 'therapists', 'psychiatrists']):
-        return any(word in answer_lower for word in ['coach', 'therapist', 'psychiatrist', 'provider', 'network']) or any(char.isdigit() for char in answer_lower)
+        # Must have either numbers or specific provider terms
+        has_numbers = any(char.isdigit() for char in answer_lower)
+        has_provider_terms = any(word in answer_lower for word in ['coach', 'therapist', 'psychiatrist', 'provider', 'network', 'licensed', 'certified'])
+        return has_numbers or has_provider_terms
     
-    # Implementation questions should have timeline/process info
+    # Implementation questions should have specific timeline/process info
     if 'implementation' in question_lower:
-        return any(word in answer_lower for word in ['implementation', 'timeline', 'process', 'plan', 'deployment', 'launch'])
+        return any(word in answer_lower for word in ['implementation', 'timeline', 'process', 'plan', 'deployment', 'launch', 'weeks', 'months', 'phases', 'steps'])
     
-    # Fee questions should have financial info
+    # Fee questions should have specific financial info
     if any(word in question_lower for word in ['fee', 'cost', 'price', 'guarantee', 'risk']):
-        return any(word in answer_lower for word in ['fee', 'cost', 'price', 'guarantee', 'risk', 'financial', 'pricing'])
+        return any(word in answer_lower for word in ['fee', 'cost', 'price', 'guarantee', 'risk', 'financial', 'pricing', 'dollar', '$', 'per', 'annual', 'monthly'])
     
-    # Eligibility questions should have eligibility info
+    # Eligibility questions should have specific eligibility info
     if 'eligibility' in question_lower:
-        return any(word in answer_lower for word in ['eligibility', 'eligible', 'file', 'data', 'employee', 'member'])
+        return any(word in answer_lower for word in ['eligibility', 'eligible', 'file', 'data', 'employee', 'member', 'enrollment', 'roster'])
     
-    # Dependent questions should have dependent info
+    # Dependent questions should have specific dependent info
     if 'dependent' in question_lower:
-        return any(word in answer_lower for word in ['dependent', 'spouse', 'child', 'family', 'eligible'])
+        return any(word in answer_lower for word in ['dependent', 'spouse', 'child', 'family', 'eligible', 'age', 'relationship'])
     
-    # Wait time questions should have timing info
+    # Wait time questions should have specific timing info
     if 'wait time' in question_lower or 'appointment' in question_lower:
-        return any(word in answer_lower for word in ['time', 'hour', 'day', 'appointment', 'schedule', 'wait'])
+        return any(word in answer_lower for word in ['time', 'hour', 'day', 'appointment', 'schedule', 'wait', 'minutes', 'hours', 'days', 'average'])
     
-    # Default: allow if not obviously irrelevant
-    return True
+    # Fitness-for-duty questions should have specific process info
+    if 'fitness for duty' in question_lower or 'fitness-for-duty' in question_lower:
+        return any(word in answer_lower for word in ['fitness', 'duty', 'evaluation', 'assessment', 'process', 'standard', 'delivery', 'time'])
+    
+    # Leave of absence questions should have specific LOA info
+    if 'leave of absence' in question_lower or 'loa' in question_lower:
+        return any(word in answer_lower for word in ['leave', 'absence', 'loa', 'process', 'flow', 'manager', 'referral', 'cism'])
+    
+    # Health plan integration questions should have specific HPI info
+    if 'health plan integration' in question_lower or 'hpi' in question_lower:
+        return any(word in answer_lower for word in ['health', 'plan', 'integration', 'hpi', 'carrier', 'anthem', 'medical', 'benefit'])
+    
+    # Performance guarantee questions should have specific guarantee info
+    if 'performance guarantee' in question_lower:
+        return any(word in answer_lower for word in ['performance', 'guarantee', 'risk', 'fee', 'at risk', 'roi', 'offset'])
+    
+    # Default: be more restrictive - only allow if answer seems relevant
+    return len(answer_lower) > 20 and not any(word in answer_lower for word in ['enhance', 'program', 'resources', 'access points', 'employees', 'dependents'])
 
 def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
     """Simple matching without API calls to avoid hanging"""
