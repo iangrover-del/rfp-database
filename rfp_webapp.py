@@ -1180,6 +1180,48 @@ def calculate_smart_match_score(new_question: str, historical_question: str, que
     
     return max(0.0, min(1.0, base_score))
 
+def is_answer_relevant_to_question(question_lower: str, answer_lower: str) -> bool:
+    """Check if an answer is relevant to the question being asked"""
+    
+    # Geo Access questions should have geographic/network info
+    if 'geo access' in question_lower:
+        return any(word in answer_lower for word in ['network', 'coverage', 'geographic', 'states', 'locations', 'providers', 'access'])
+    
+    # Sample login questions should have login/demo info
+    if 'sample login' in question_lower or 'demo' in question_lower:
+        return any(word in answer_lower for word in ['login', 'demo', 'access', 'portal', 'platform', 'app', 'website'])
+    
+    # Visit limit questions should have visit/limit info
+    if 'visit limit' in question_lower:
+        return any(word in answer_lower for word in ['visit', 'limit', 'session', 'appointment', 'care', 'therapy'])
+    
+    # Network provider count questions should have numbers
+    if any(word in question_lower for word in ['how many', 'total', 'in-person', 'virtual']) and any(word in question_lower for word in ['coaches', 'therapists', 'psychiatrists']):
+        return any(word in answer_lower for word in ['coach', 'therapist', 'psychiatrist', 'provider', 'network']) or any(char.isdigit() for char in answer_lower)
+    
+    # Implementation questions should have timeline/process info
+    if 'implementation' in question_lower:
+        return any(word in answer_lower for word in ['implementation', 'timeline', 'process', 'plan', 'deployment', 'launch'])
+    
+    # Fee questions should have financial info
+    if any(word in question_lower for word in ['fee', 'cost', 'price', 'guarantee', 'risk']):
+        return any(word in answer_lower for word in ['fee', 'cost', 'price', 'guarantee', 'risk', 'financial', 'pricing'])
+    
+    # Eligibility questions should have eligibility info
+    if 'eligibility' in question_lower:
+        return any(word in answer_lower for word in ['eligibility', 'eligible', 'file', 'data', 'employee', 'member'])
+    
+    # Dependent questions should have dependent info
+    if 'dependent' in question_lower:
+        return any(word in answer_lower for word in ['dependent', 'spouse', 'child', 'family', 'eligible'])
+    
+    # Wait time questions should have timing info
+    if 'wait time' in question_lower or 'appointment' in question_lower:
+        return any(word in answer_lower for word in ['time', 'hour', 'day', 'appointment', 'schedule', 'wait'])
+    
+    # Default: allow if not obviously irrelevant
+    return True
+
 def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
     """Simple matching without API calls to avoid hanging"""
     print("DEBUG: Using simple matching without API calls")
@@ -1251,6 +1293,10 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             
             # Skip if answer is just a name/email
             if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
+                continue
+            
+            # Check answer relevance to question type
+            if not is_answer_relevant_to_question(question_lower, answer_lower):
                 continue
             
             # Calculate word overlap
