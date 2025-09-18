@@ -1041,17 +1041,9 @@ def should_use_embeddings(question: str) -> bool:
     """Use embeddings for ALL questions - quality over speed"""
     return True  # Always use embeddings for best quality
 
-def find_matching_answers_embeddings(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
-    """Find matching answers using hybrid approach: embeddings for key questions, fast matching for others"""
-    
-    if not existing_submissions:
-        return {
-            "matches": [], 
-            "overall_confidence": 0,
-            "total_questions_found": len(questions),
-            "questions_answered": 0,
-            "debug_info": {"qa_pairs_found": 0, "submissions_processed": 0}
-        }
+def find_matching_answers_simple_fallback(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
+    """Simple keyword-based fallback matching when embeddings fail"""
+    print("DEBUG: Using simple fallback matching")
     
     # Extract all Q&A pairs from existing submissions
     all_qa_pairs = []
@@ -1085,117 +1077,64 @@ def find_matching_answers_embeddings(questions: List[str], existing_submissions:
                 print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
                 continue
     
-    print(f"DEBUG: Found {len(all_qa_pairs)} Q&A pairs from {len(existing_submissions)} submissions")
-    
-    if not all_qa_pairs:
-        return {
-            "matches": [], 
-            "overall_confidence": 0,
-            "total_questions_found": len(questions),
-            "questions_answered": 0,
-            "debug_info": {"qa_pairs_found": 0, "submissions_processed": len(existing_submissions)}
-        }
-    
     matches = []
-    
-    # For each new question, find the best matching answer using embeddings
     used_answers = set()
     
-    for i, question in enumerate(questions):  # Process ALL questions
-        print(f"DEBUG: Processing question {i+1}/{len(questions)}: {question[:100]}...")
+    for i, question in enumerate(questions):
+        print(f"DEBUG: Simple matching question {i+1}/{len(questions)}: {question[:50]}...")
         
-        # Use embeddings for ALL questions for best quality
-        print(f"DEBUG: Using embeddings for question: {question[:50]}...")
-        try:
-            new_question_embedding = get_question_embedding(question)
-            if new_question_embedding is None:
-                print(f"DEBUG: Failed to get embedding for question {i+1}")
-                # Provide fallback answer
-                fallback_answer = get_fallback_answer(question, classify_question_type(question.lower()))
-                matches.append({
-                    "question": question,
-                    "suggested_answer": fallback_answer,
-                    "confidence": 10,
-                    "source_rfp": "None",
-                    "category": "no_match",
-                    "source_status": "unknown",
-                    "matching_reason": "Failed to get embedding"
-                })
+        best_match = None
+        best_score = 0
+        
+        # Simple keyword-based matching
+        question_lower = question.lower()
+        question_words = set(question_lower.split())
+        
+        for qa_pair in all_qa_pairs[:100]:  # Limit for speed
+            # Skip if we've already used this exact answer
+            answer_hash = hash(qa_pair['answer'][:200])
+            if answer_hash in used_answers:
                 continue
             
-            best_match = None
-            best_similarity = 0
+            # Skip obviously irrelevant answers
+            answer_lower = qa_pair['answer'].lower()
+            if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
+                continue
             
-            # Find the most similar historical question (check all for best quality)
-            for qa_pair in all_qa_pairs:
-                # Skip if we've already used this exact answer
-                answer_hash = hash(qa_pair['answer'][:200])
-                if answer_hash in used_answers:
-                    continue
-                
-                # Skip obviously irrelevant answers
-                answer_lower = qa_pair['answer'].lower()
-                if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
-                    continue
-                
-                # Skip if answer is just a name/email
-                if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
-                    continue
-                
-                # Get embedding for historical question
-                try:
-                    hist_question_embedding = get_question_embedding(qa_pair['question'])
-                    if hist_question_embedding is None:
-                        continue
-                except Exception as e:
-                    print(f"DEBUG: Error getting embedding for historical question: {e}")
-                    continue
-                
-                # Calculate cosine similarity
-                similarity = calculate_cosine_similarity(new_question_embedding, hist_question_embedding)
-                
-                if similarity > best_similarity:
-                    best_similarity = similarity
+            # Skip if answer is just a name/email
+            if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
+                continue
+            
+            # Calculate simple word overlap score
+            hist_question_lower = qa_pair['question'].lower()
+            hist_words = set(hist_question_lower.split())
+            
+            common_words = question_words & hist_words
+            if common_words:
+                score = len(common_words) / max(len(question_words), len(hist_words))
+                if score > best_score:
+                    best_score = score
                     best_match = qa_pair
+        
+        if best_match and best_score > 0.1:  # Lower threshold for simple matching
+            # Mark this answer as used
+            answer_hash = hash(best_match['answer'][:200])
+            used_answers.add(answer_hash)
             
-            # Apply similarity threshold
-            if best_match and best_similarity > 0.7:  # High threshold for quality matches
-                # Mark this answer as used
-                answer_hash = hash(best_match['answer'][:200])
-                used_answers.add(answer_hash)
-                
-                # Clean brand names from the answer
-                cleaned_answer = clean_brand_names(best_match['answer'])
-                
-                # Make answers more concise for certain question types
-                cleaned_answer = make_answer_concise(question, cleaned_answer)
-                
-                matches.append({
-                    "question": question,
-                    "suggested_answer": cleaned_answer,
-                    "confidence": min(95, int(best_similarity * 100)),
-                    "source_rfp": best_match['source'],
-                    "category": "matched",
-                    "source_status": best_match['status'],
-                    "matching_reason": f"Embedding match (similarity: {best_similarity:.3f})"
-                })
-            else:
-                # Provide a fallback answer based on question type
-                fallback_answer = get_fallback_answer(question, classify_question_type(question.lower()))
-                print(f"DEBUG: No good match found for question {i+1}, best similarity was {best_similarity:.3f}")
-                matches.append({
-                    "question": question,
-                    "suggested_answer": fallback_answer,
-                    "confidence": 10,
-                    "source_rfp": "None",
-                    "category": "no_match",
-                    "source_status": "unknown",
-                    "matching_reason": f"No match found (best similarity: {best_similarity:.3f})"
-                })
-                
-        except Exception as e:
-            print(f"DEBUG: Error with embeddings for question {i+1}: {e}")
-            # Provide fallback answer
+            # Clean brand names from the answer
+            cleaned_answer = clean_brand_names(best_match['answer'])
+            
+            matches.append({
+                "question": question,
+                "suggested_answer": cleaned_answer,
+                "confidence": min(70, int(best_score * 100)),
+                "source_rfp": best_match['source'],
+                "category": "matched",
+                "source_status": best_match['status'],
+                "matching_reason": f"Simple match (score: {best_score:.3f})"
+            })
+        else:
+            # Provide a fallback answer based on question type
             fallback_answer = get_fallback_answer(question, classify_question_type(question.lower()))
             matches.append({
                 "question": question,
@@ -1204,7 +1143,7 @@ def find_matching_answers_embeddings(questions: List[str], existing_submissions:
                 "source_rfp": "None",
                 "category": "no_match",
                 "source_status": "unknown",
-                "matching_reason": f"Embedding error: {str(e)[:50]}"
+                "matching_reason": f"No match found (best score: {best_score:.3f})"
             })
     
     return {
@@ -1215,10 +1154,200 @@ def find_matching_answers_embeddings(questions: List[str], existing_submissions:
         "debug_info": {
             "qa_pairs_found": len(all_qa_pairs),
             "submissions_processed": len(existing_submissions),
-            "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
+            "method": "simple_fallback"
         }
     }
 
+# # def find_matching_answers_embeddings(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
+# #     """Find matching answers using embeddings for all questions - quality over speed"""
+#     
+#     try:
+#         print(f"DEBUG: Starting embeddings matching for {len(questions)} questions")
+#         
+#         if not existing_submissions:
+#             return {
+#                 "matches": [], 
+#                 "overall_confidence": 0,
+#                 "total_questions_found": len(questions),
+#                 "questions_answered": 0,
+#                 "debug_info": {"qa_pairs_found": 0, "submissions_processed": 0}
+#             }
+#         
+#         # Extract all Q&A pairs from existing submissions
+#         all_qa_pairs = []
+#     for submission in existing_submissions:
+#         if len(submission) > 4 and submission[4]:
+#             try:
+#                 data = json.loads(submission[4])
+#                 
+#                 if 'question_answer_pairs' in data:
+#                     for pair in data['question_answer_pairs']:
+#                         if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
+#                             all_qa_pairs.append({
+#                                 'question': pair['question'],
+#                                 'answer': pair['answer'],
+#                                 'source': submission[1],
+#                                 'status': submission[5] if len(submission) > 5 else 'unknown'
+#                             })
+#                 elif 'all_questions_found' in data:
+#                     questions_found = data['all_questions_found']
+#                     if isinstance(questions_found, list) and len(questions_found) > 0:
+#                         if isinstance(questions_found[0], dict) and 'question' in questions_found[0] and 'answer' in questions_found[0]:
+#                             for pair in questions_found:
+#                                 if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
+#                                     all_qa_pairs.append({
+#                                         'question': pair['question'],
+#                                         'answer': pair['answer'],
+#                                         'source': submission[1],
+#                                         'status': submission[5] if len(submission) > 5 else 'unknown'
+#                                     })
+#             except Exception as e:
+#                 print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
+#                 continue
+#     
+#     print(f"DEBUG: Found {len(all_qa_pairs)} Q&A pairs from {len(existing_submissions)} submissions")
+#     
+#     if not all_qa_pairs:
+#         return {
+#             "matches": [], 
+#             "overall_confidence": 0,
+#             "total_questions_found": len(questions),
+#             "questions_answered": 0,
+#             "debug_info": {"qa_pairs_found": 0, "submissions_processed": len(existing_submissions)}
+#         }
+#     
+#     matches = []
+#     
+#     # For each new question, find the best matching answer using embeddings
+#     used_answers = set()
+#     
+#     for i, question in enumerate(questions):  # Process ALL questions
+#         print(f"DEBUG: Processing question {i+1}/{len(questions)}: {question[:100]}...")
+#         
+#         # Use embeddings for ALL questions for best quality
+#         print(f"DEBUG: Using embeddings for question: {question[:50]}...")
+#         try:
+#             new_question_embedding = get_question_embedding(question)
+#             if new_question_embedding is None:
+#                 print(f"DEBUG: Failed to get embedding for question {i+1}")
+#                 # Provide fallback answer
+#                 fallback_answer = get_fallback_answer(question, classify_question_type(question.lower()))
+#                 matches.append({
+#                     "question": question,
+#                     "suggested_answer": fallback_answer,
+#                     "confidence": 10,
+#                     "source_rfp": "None",
+#                     "category": "no_match",
+#                     "source_status": "unknown",
+#                     "matching_reason": "Failed to get embedding"
+#                 })
+#                 continue
+#             
+#             best_match = None
+#             best_similarity = 0
+#             
+#             # Find the most similar historical question (check all for best quality)
+#             for qa_pair in all_qa_pairs:
+#                 # Skip if we've already used this exact answer
+#                 answer_hash = hash(qa_pair['answer'][:200])
+#                 if answer_hash in used_answers:
+#                     continue
+#                 
+#                 # Skip obviously irrelevant answers
+#                 answer_lower = qa_pair['answer'].lower()
+#                 if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
+#                     continue
+#                 
+#                 # Skip if answer is just a name/email
+#                 if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
+#                     continue
+#                 
+#                 # Get embedding for historical question
+#                 try:
+#                     hist_question_embedding = get_question_embedding(qa_pair['question'])
+#                     if hist_question_embedding is None:
+#                         continue
+#                 except Exception as e:
+#                     print(f"DEBUG: Error getting embedding for historical question: {e}")
+#                     continue
+#                 
+#                 # Calculate cosine similarity
+#                 similarity = calculate_cosine_similarity(new_question_embedding, hist_question_embedding)
+#                 
+#                 if similarity > best_similarity:
+#                     best_similarity = similarity
+#                     best_match = qa_pair
+#             
+#             # Apply similarity threshold
+#             if best_match and best_similarity > 0.7:  # High threshold for quality matches
+#                 # Mark this answer as used
+#                 answer_hash = hash(best_match['answer'][:200])
+#                 used_answers.add(answer_hash)
+#                 
+#                 # Clean brand names from the answer
+#                 cleaned_answer = clean_brand_names(best_match['answer'])
+#                 
+#                 # Make answers more concise for certain question types
+#                 cleaned_answer = make_answer_concise(question, cleaned_answer)
+#                 
+#                 matches.append({
+#                     "question": question,
+#                     "suggested_answer": cleaned_answer,
+#                     "confidence": min(95, int(best_similarity * 100)),
+#                     "source_rfp": best_match['source'],
+#                     "category": "matched",
+#                     "source_status": best_match['status'],
+#                     "matching_reason": f"Embedding match (similarity: {best_similarity:.3f})"
+#                 })
+#             else:
+#                 # Provide a fallback answer based on question type
+#                 fallback_answer = get_fallback_answer(question, classify_question_type(question.lower()))
+#                 print(f"DEBUG: No good match found for question {i+1}, best similarity was {best_similarity:.3f}")
+#                 matches.append({
+#                     "question": question,
+#                     "suggested_answer": fallback_answer,
+#                     "confidence": 10,
+#                     "source_rfp": "None",
+#                     "category": "no_match",
+#                     "source_status": "unknown",
+#                     "matching_reason": f"No match found (best similarity: {best_similarity:.3f})"
+#                 })
+#                 
+#         except Exception as e:
+#             print(f"DEBUG: Error with embeddings for question {i+1}: {e}")
+#             # Provide fallback answer
+#             fallback_answer = get_fallback_answer(question, classify_question_type(question.lower()))
+#             matches.append({
+#                 "question": question,
+#                 "suggested_answer": fallback_answer,
+#                 "confidence": 10,
+#                 "source_rfp": "None",
+#                 "category": "no_match",
+#                 "source_status": "unknown",
+#                 "matching_reason": f"Embedding error: {str(e)[:50]}"
+#             })
+#     
+#         return {
+#             "matches": matches,
+#             "overall_confidence": sum(m['confidence'] for m in matches) // len(matches) if matches else 0,
+#             "total_questions_found": len(questions),
+#             "questions_answered": len(matches),
+#             "debug_info": {
+#                 "qa_pairs_found": len(all_qa_pairs),
+#                 "submissions_processed": len(existing_submissions),
+#                 "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
+#             }
+#         }
+#     
+#     except Exception as e:
+#         print(f"DEBUG: CRITICAL ERROR in embeddings matching: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         
+#         # Use simple fallback matching instead of returning empty results
+#         print("DEBUG: Falling back to simple keyword matching")
+#         return find_matching_answers_simple_fallback(questions, existing_submissions)
+# 
 def calculate_direct_match_score(new_question: str, historical_question: str, question_type: str, qa_pair: dict) -> float:
     """Calculate direct matching score based on semantic similarity and question type"""
     new_q_lower = new_question.lower()
@@ -2529,7 +2658,7 @@ def show_process_page(client):
                             st.write(f"  - Error parsing data")
                 
                 # Find matching answers using semantic similarity
-                matches = find_matching_answers_embeddings(questions, existing_submissions)
+                matches = find_matching_answers_simple_fallback(questions, existing_submissions)
                 
                 # Show debug info from semantic matching
                 if "debug_info" in matches:
