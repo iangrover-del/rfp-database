@@ -3104,7 +3104,7 @@ def show_process_page(client):
                             st.write(f"  - Error parsing data")
                 
             print("DEBUG: Finished showing historical data, about to call AI learning agent")
-            st.write("🔍 **Debug: About to call AI learning agent**")
+            st.write("🔍 **Debug: About to call matching function**")
             print("DEBUG: About to call find_matching_answers_simple")
             print(f"DEBUG: Questions count: {len(questions)}")
             print(f"DEBUG: Existing submissions count: {len(existing_submissions)}")
