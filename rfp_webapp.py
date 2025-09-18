@@ -1262,7 +1262,12 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 'geo access', 'sample login', 'visit limit', 'eligibility file', 
                 'definition of dependents', 'fitness for duty', 'leave of absence',
                 'implementation timeline', 'health plan integration', 'fees',
-                'performance guarantees', 'roi estimate', 'fees at risk'
+                'performance guarantees', 'roi estimate', 'fees at risk',
+                'mental health coaches', 'therapists', 'psychiatrists', 'nurse practitioner',
+                'in-person', 'virtual', 'adults', 'child', 'adolescents', 'ages',
+                'wait times', 'appointment', 'account management', 'team',
+                'utilization assumption', 'financial template', 'guaranteed', 'three years',
+                'offset costs', 'carrier', 'anthem', 'health plan integration'
             ]
             
             score = 0
@@ -1270,11 +1275,15 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 if phrase in question_lower and phrase in hist_question_lower:
                     score += 0.5  # Strong boost for matching important phrases
             
-            # Add word overlap
+            # Add word overlap with more generous scoring
             common_words = question_words & hist_words
             if common_words:
                 word_score = len(common_words) / max(len(question_words), len(hist_words))
-                score += word_score * 0.3
+                score += word_score * 0.5  # Increased from 0.3 to 0.5
+            
+            # Boost for any common words (even if no phrases match)
+            if common_words:
+                score += 0.1  # Small boost for any word overlap
             
             if score > best_score and score > 0.05:  # Very low threshold to get matches
                 best_match = qa_pair
