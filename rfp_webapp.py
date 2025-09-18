@@ -1158,15 +1158,25 @@ def calculate_smart_match_score(new_question: str, historical_question: str, que
     if any(phrase in hist_lower for phrase in ['sample login', 'demo', 'dependents definition', 'fitness for duty', 'implementation timeline']):
         base_score += 0.2
     
-    # Penalize obviously wrong matches
+    # Boost for very similar questions (high word overlap)
+    if len(common_words) >= 3 and len(common_words) / max(len(new_words), len(hist_words)) > 0.6:
+        base_score += 0.3
+    
+    # Penalize obviously wrong matches more heavily
     if question_type == 'demo_login' and any(word in answer_lower for word in ['engagement', 'assessment', 'matching']):
-        base_score -= 0.4
+        base_score -= 0.6
     
     if question_type == 'dependents_eligibility' and any(word in answer_lower for word in ['engagement', 'assessment', 'matching']):
-        base_score -= 0.4
+        base_score -= 0.6
     
     if question_type == 'fitness_for_duty' and any(word in answer_lower for word in ['references', 'contact', 'reach out']):
-        base_score -= 0.5
+        base_score -= 0.7
+    
+    if question_type == 'network_count' and not any(char.isdigit() for char in qa_pair['answer']):
+        base_score -= 0.5  # Heavy penalty for non-numeric answers to count questions
+    
+    if question_type == 'implementation' and any(word in answer_lower for word in ['financial', 'private', 'release']):
+        base_score -= 0.6  # Penalize financial info for implementation questions
     
     return max(0.0, min(1.0, base_score))
 
@@ -1245,7 +1255,7 @@ def find_matching_answers_smart_matching(questions: List[str], existing_submissi
                 best_score = score
                 best_match = qa_pair
         
-        if best_match and best_score > 0.2:  # Higher threshold for quality
+        if best_match and best_score > 0.5:  # Much higher threshold - only match when very confident
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
