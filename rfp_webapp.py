@@ -3105,9 +3105,12 @@ def show_process_page(client):
                 
             print("DEBUG: Finished showing historical data, about to call AI learning agent")
             st.write("🔍 **Debug: About to call AI learning agent**")
-            print("DEBUG: Using simple matching with low threshold")
+            print("DEBUG: About to call find_matching_answers_simple")
+            print(f"DEBUG: Questions count: {len(questions)}")
+            print(f"DEBUG: Existing submissions count: {len(existing_submissions)}")
             # Use simple matching with low threshold to get more matches
             matches = find_matching_answers_simple(questions, existing_submissions)
+            print("DEBUG: find_matching_answers_simple completed")
             
             # Show debug info from AI agent
             if "debug_info" in matches:
