@@ -1180,6 +1180,127 @@ def calculate_smart_match_score(new_question: str, historical_question: str, que
     
     return max(0.0, min(1.0, base_score))
 
+def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
+    """Simple matching that actually works with low threshold"""
+    print("DEBUG: Using simple matching with low threshold")
+    
+    # Extract all Q&A pairs from existing submissions
+    all_qa_pairs = []
+    for submission in existing_submissions:
+        if len(submission) > 4 and submission[4]:
+            try:
+                data = json.loads(submission[4])
+                if 'question_answer_pairs' in data:
+                    pairs = data['question_answer_pairs']
+                    for pair in pairs:
+                        if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
+                            all_qa_pairs.append({
+                                'question': pair['question'],
+                                'answer': pair['answer'],
+                                'source': submission[1],
+                                'status': submission[5] if len(submission) > 5 else 'unknown'
+                            })
+                elif 'all_questions_found' in data:
+                    questions_found = data['all_questions_found']
+                    if isinstance(questions_found, list) and len(questions_found) > 0:
+                        if isinstance(questions_found[0], dict) and 'question' in questions_found[0] and 'answer' in questions_found[0]:
+                            for pair in questions_found:
+                                if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
+                                    all_qa_pairs.append({
+                                        'question': pair['question'],
+                                        'answer': pair['answer'],
+                                        'source': submission[1],
+                                        'status': submission[5] if len(submission) > 5 else 'unknown'
+                                    })
+            except Exception as e:
+                print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
+                continue
+    
+    print(f"DEBUG: Found {len(all_qa_pairs)} Q&A pairs")
+    
+    matches = []
+    used_answers = set()
+    
+    for i, question in enumerate(questions):
+        print(f"DEBUG: Simple matching question {i+1}/{len(questions)}: {question[:50]}...")
+        
+        best_match = None
+        best_score = 0
+        
+        # Simple keyword-based matching
+        question_lower = question.lower()
+        question_words = set(question_lower.split())
+        
+        for qa_pair in all_qa_pairs[:100]:  # Limit for speed
+            # Skip if we've already used this exact answer
+            answer_hash = hash(qa_pair['answer'][:200])
+            if answer_hash in used_answers:
+                continue
+            
+            # Skip obviously irrelevant answers
+            answer_lower = qa_pair['answer'].lower()
+            if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
+                continue
+            
+            # Skip if answer is just a name/email
+            if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
+                continue
+            
+            # Calculate simple word overlap score
+            hist_question_lower = qa_pair['question'].lower()
+            hist_words = set(hist_question_lower.split())
+            
+            common_words = question_words & hist_words
+            if common_words:
+                score = len(common_words) / max(len(question_words), len(hist_words))
+                if score > best_score:
+                    best_score = score
+                    best_match = qa_pair
+        
+        if best_match and best_score > 0.1:  # Very low threshold to get matches
+            # Mark this answer as used
+            answer_hash = hash(best_match['answer'][:200])
+            used_answers.add(answer_hash)
+            
+            # Clean brand names from the answer
+            cleaned_answer = clean_brand_names(best_match['answer'])
+            
+            matches.append({
+                "question": question,
+                "suggested_answer": cleaned_answer,
+                "confidence": min(70, int(best_score * 100)),
+                "source_rfp": best_match['source'],
+                "category": "matched",
+                "source_status": best_match['status'],
+                "matching_reason": f"Simple match (score: {best_score:.3f})"
+            })
+        else:
+            # Provide a fallback answer based on question type
+            question_type = classify_question_type(question.lower())
+            fallback_answer = get_fallback_answer(question, question_type)
+            matches.append({
+                "question": question,
+                "suggested_answer": fallback_answer,
+                "confidence": 10,
+                "source_rfp": "None",
+                "category": "no_match",
+                "source_status": "unknown",
+                "matching_reason": f"No match found (best score: {best_score:.3f})"
+            })
+    
+    return {
+        "matches": matches,
+        "overall_confidence": sum(m['confidence'] for m in matches) // len(matches) if matches else 0,
+        "total_questions_found": len(questions),
+        "questions_answered": len(matches),
+        "debug_info": {
+            "qa_pairs_found": len(all_qa_pairs),
+            "submissions_processed": len(existing_submissions),
+            "method": "simple_matching",
+            "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
+        }
+    }
+
 def find_matching_answers_ai_agent(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
     """AI agent that learns from all historical Q&A pairs to generate better answers"""
     print("DEBUG: Using AI learning agent with historical knowledge base")
@@ -2921,18 +3042,9 @@ def show_process_page(client):
                 
             print("DEBUG: Finished showing historical data, about to call AI learning agent")
             st.write("🔍 **Debug: About to call AI learning agent**")
-            print("DEBUG: About to call AI learning agent")
-            try:
-                # Find matching answers using AI learning agent
-                matches = find_matching_answers_ai_agent(questions, existing_submissions)
-                print("DEBUG: AI learning agent completed successfully")
-            except Exception as e:
-                print(f"DEBUG: Error in AI learning agent: {e}")
-                import traceback
-                traceback.print_exc()
-                # Fall back to smart matching
-                print("DEBUG: Falling back to smart matching")
-                matches = find_matching_answers_smart_matching(questions, existing_submissions)
+            print("DEBUG: Using simple matching with low threshold")
+            # Use simple matching with low threshold to get more matches
+            matches = find_matching_answers_simple(questions, existing_submissions)
             
             # Show debug info from AI agent
             if "debug_info" in matches:
