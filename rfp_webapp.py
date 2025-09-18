@@ -1181,8 +1181,8 @@ def calculate_smart_match_score(new_question: str, historical_question: str, que
     return max(0.0, min(1.0, base_score))
 
 def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
-    """Simple matching that actually works with low threshold"""
-    print("DEBUG: Using simple matching with low threshold")
+    """Exact question matching first, then semantic similarity"""
+    print("DEBUG: Using exact question matching with semantic fallback")
     
     # Extract all Q&A pairs from existing submissions
     all_qa_pairs = []
@@ -1222,42 +1222,99 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
     used_answers = set()
     
     for i, question in enumerate(questions):
-        print(f"DEBUG: Simple matching question {i+1}/{len(questions)}: {question[:50]}...")
+        print(f"DEBUG: Matching question {i+1}/{len(questions)}: {question[:50]}...")
         
         best_match = None
         best_score = 0
+        match_type = "none"
         
-        # Simple keyword-based matching
-        question_lower = question.lower()
-        question_words = set(question_lower.split())
-        
-        for qa_pair in all_qa_pairs[:100]:  # Limit for speed
-            # Skip if we've already used this exact answer
-            answer_hash = hash(qa_pair['answer'][:200])
-            if answer_hash in used_answers:
-                continue
+        # Step 1: Try exact question matching first
+        question_clean = question.lower().strip()
+        for qa_pair in all_qa_pairs:
+            hist_question_clean = qa_pair['question'].lower().strip()
             
-            # Skip obviously irrelevant answers
-            answer_lower = qa_pair['answer'].lower()
-            if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
-                continue
+            # Exact match
+            if question_clean == hist_question_clean:
+                best_match = qa_pair
+                best_score = 1.0
+                match_type = "exact"
+                break
             
-            # Skip if answer is just a name/email
-            if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
-                continue
-            
-            # Calculate simple word overlap score
-            hist_question_lower = qa_pair['question'].lower()
-            hist_words = set(hist_question_lower.split())
-            
-            common_words = question_words & hist_words
-            if common_words:
-                score = len(common_words) / max(len(question_words), len(hist_words))
-                if score > best_score:
-                    best_score = score
+            # Very similar match (90%+ similarity)
+            if len(question_clean) > 20 and len(hist_question_clean) > 20:
+                # Calculate character-level similarity
+                common_chars = sum(1 for a, b in zip(question_clean, hist_question_clean) if a == b)
+                similarity = common_chars / max(len(question_clean), len(hist_question_clean))
+                if similarity > 0.9 and similarity > best_score:
                     best_match = qa_pair
+                    best_score = similarity
+                    match_type = "very_similar"
         
-        if best_match and best_score > 0.1:  # Very low threshold to get matches
+        # Step 2: If no exact match, try semantic similarity with embeddings
+        if not best_match or best_score < 0.9:
+            try:
+                question_embedding = get_question_embedding(question)
+                if question_embedding:
+                    for qa_pair in all_qa_pairs:
+                        hist_embedding = get_question_embedding(qa_pair['question'])
+                        if hist_embedding:
+                            similarity = calculate_cosine_similarity(question_embedding, hist_embedding)
+                            if similarity > best_score and similarity > 0.7:  # High threshold for semantic similarity
+                                best_match = qa_pair
+                                best_score = similarity
+                                match_type = "semantic"
+            except Exception as e:
+                print(f"DEBUG: Error with embeddings: {e}")
+        
+        # Step 3: If still no good match, try key phrase matching
+        if not best_match or best_score < 0.7:
+            question_lower = question.lower()
+            question_words = set(question_lower.split())
+            
+            for qa_pair in all_qa_pairs:
+                # Skip if we've already used this exact answer
+                answer_hash = hash(qa_pair['answer'][:200])
+                if answer_hash in used_answers:
+                    continue
+                
+                # Skip obviously irrelevant answers
+                answer_lower = qa_pair['answer'].lower()
+                if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
+                    continue
+                
+                # Skip if answer is just a name/email
+                if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
+                    continue
+                
+                # Calculate key phrase overlap
+                hist_question_lower = qa_pair['question'].lower()
+                hist_words = set(hist_question_lower.split())
+                
+                # Look for important phrases, not just individual words
+                important_phrases = [
+                    'geo access', 'sample login', 'visit limit', 'eligibility file', 
+                    'definition of dependents', 'fitness for duty', 'leave of absence',
+                    'implementation timeline', 'health plan integration', 'fees',
+                    'performance guarantees', 'roi estimate', 'fees at risk'
+                ]
+                
+                score = 0
+                for phrase in important_phrases:
+                    if phrase in question_lower and phrase in hist_question_lower:
+                        score += 0.5  # Strong boost for matching important phrases
+                
+                # Add word overlap
+                common_words = question_words & hist_words
+                if common_words:
+                    word_score = len(common_words) / max(len(question_words), len(hist_words))
+                    score += word_score * 0.3
+                
+                if score > best_score and score > 0.3:  # Higher threshold for key phrase matching
+                    best_match = qa_pair
+                    best_score = score
+                    match_type = "key_phrase"
+        
+        if best_match and best_score > 0.3:
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1268,11 +1325,11 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             matches.append({
                 "question": question,
                 "suggested_answer": cleaned_answer,
-                "confidence": min(70, int(best_score * 100)),
+                "confidence": min(85, int(best_score * 100)),
                 "source_rfp": best_match['source'],
                 "category": "matched",
                 "source_status": best_match['status'],
-                "matching_reason": f"Simple match (score: {best_score:.3f})"
+                "matching_reason": f"{match_type} match (score: {best_score:.3f})"
             })
         else:
             # Provide a fallback answer based on question type
@@ -1296,7 +1353,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         "debug_info": {
             "qa_pairs_found": len(all_qa_pairs),
             "submissions_processed": len(existing_submissions),
-            "method": "simple_matching",
+            "method": "exact_then_semantic",
             "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
         }
     }
