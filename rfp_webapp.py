@@ -2911,7 +2911,9 @@ def show_process_page(client):
                             st.write(f"  - Error parsing data")
                 
             # Find matching answers using AI learning agent
+            print("DEBUG: About to call AI learning agent")
             matches = find_matching_answers_ai_agent(questions, existing_submissions)
+            print("DEBUG: AI learning agent completed")
             
             # Show debug info from AI agent
             if "debug_info" in matches:
