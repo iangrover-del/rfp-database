@@ -1286,10 +1286,14 @@ def build_knowledge_base(existing_submissions: List) -> List[Dict]:
 def generate_ai_answer(question: str, knowledge_base: List[Dict]) -> Dict[str, Any]:
     """Use AI to generate the best answer from the knowledge base"""
     try:
+        print(f"DEBUG: Starting AI answer generation for question: {question[:50]}...")
+        
         # Find relevant Q&A pairs using semantic similarity
         relevant_pairs = find_relevant_qa_pairs(question, knowledge_base)
+        print(f"DEBUG: Found {len(relevant_pairs)} relevant pairs")
         
         if not relevant_pairs:
+            print("DEBUG: No relevant pairs found, returning fallback")
             return {
                 'answer': 'No relevant information found in knowledge base.',
                 'confidence': 10,
@@ -1331,6 +1335,7 @@ def generate_ai_answer(question: str, knowledge_base: List[Dict]) -> Dict[str, A
         }
         """
         
+        print("DEBUG: About to call OpenAI API")
         # Call OpenAI to synthesize the answer
         import openai
         response = openai.chat.completions.create(
@@ -1339,8 +1344,10 @@ def generate_ai_answer(question: str, knowledge_base: List[Dict]) -> Dict[str, A
             max_tokens=1000,
             temperature=0.3
         )
+        print("DEBUG: OpenAI API call completed")
         
         result = json.loads(response.choices[0].message.content)
+        print(f"DEBUG: AI generated answer with confidence: {result.get('confidence', 'unknown')}")
         
         return {
             'answer': clean_brand_names(result['answer']),
@@ -1351,6 +1358,8 @@ def generate_ai_answer(question: str, knowledge_base: List[Dict]) -> Dict[str, A
         
     except Exception as e:
         print(f"DEBUG: Error in AI answer generation: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             'answer': 'Error generating AI answer.',
             'confidence': 10,
