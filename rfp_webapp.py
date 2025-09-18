@@ -1276,12 +1276,12 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 word_score = len(common_words) / max(len(question_words), len(hist_words))
                 score += word_score * 0.3
             
-            if score > best_score and score > 0.1:  # Low threshold to get matches
+            if score > best_score and score > 0.05:  # Very low threshold to get matches
                 best_match = qa_pair
                 best_score = score
                 match_type = "word_match"
         
-        if best_match and best_score > 0.1:
+        if best_match and best_score > 0.05:
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
