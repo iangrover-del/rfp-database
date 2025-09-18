@@ -1188,6 +1188,11 @@ def find_matching_answers_ai_agent(questions: List[str], existing_submissions: L
     knowledge_base = build_knowledge_base(existing_submissions)
     print(f"DEBUG: Built knowledge base with {len(knowledge_base)} Q&A pairs")
     
+    # If knowledge base is empty, fall back to smart matching
+    if len(knowledge_base) == 0:
+        print("DEBUG: Knowledge base is empty, falling back to smart matching")
+        return find_matching_answers_smart_matching(questions, existing_submissions)
+    
     matches = []
     
     for i, question in enumerate(questions):
@@ -1241,8 +1246,11 @@ def build_knowledge_base(existing_submissions: List) -> List[Dict]:
         if len(submission) > 4 and submission[4]:
             try:
                 data = json.loads(submission[4])
+                print(f"DEBUG: Building knowledge base from {submission[1]}, keys: {list(data.keys())}")
+                
                 if 'question_answer_pairs' in data:
                     pairs = data['question_answer_pairs']
+                    print(f"DEBUG: Found {len(pairs)} question_answer_pairs in {submission[1]}")
                     for pair in pairs:
                         if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
                             knowledge_base.append({
@@ -1254,6 +1262,7 @@ def build_knowledge_base(existing_submissions: List) -> List[Dict]:
                             })
                 elif 'all_questions_found' in data:
                     questions_found = data['all_questions_found']
+                    print(f"DEBUG: Found all_questions_found in {submission[1]}: {len(questions_found) if isinstance(questions_found, list) else 'not a list'}")
                     if isinstance(questions_found, list) and len(questions_found) > 0:
                         if isinstance(questions_found[0], dict) and 'question' in questions_found[0] and 'answer' in questions_found[0]:
                             for pair in questions_found:
@@ -1265,10 +1274,13 @@ def build_knowledge_base(existing_submissions: List) -> List[Dict]:
                                         'status': submission[5] if len(submission) > 5 else 'unknown',
                                         'question_type': classify_question_type(pair['question'].lower())
                                     })
+                else:
+                    print(f"DEBUG: No Q&A data found in {submission[1]}. Available keys: {list(data.keys())}")
             except Exception as e:
                 print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
                 continue
     
+    print(f"DEBUG: Built knowledge base with {len(knowledge_base)} Q&A pairs")
     return knowledge_base
 
 def generate_ai_answer(question: str, knowledge_base: List[Dict]) -> Dict[str, Any]:
