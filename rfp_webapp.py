@@ -1190,8 +1190,11 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         if len(submission) > 4 and submission[4]:
             try:
                 data = json.loads(submission[4])
+                print(f"DEBUG: Parsing submission {submission[1]}, keys: {list(data.keys())}")
+                
                 if 'question_answer_pairs' in data:
                     pairs = data['question_answer_pairs']
+                    print(f"DEBUG: Found {len(pairs)} question_answer_pairs")
                     for pair in pairs:
                         if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
                             all_qa_pairs.append({
@@ -1202,6 +1205,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                             })
                 elif 'all_questions_found' in data:
                     questions_found = data['all_questions_found']
+                    print(f"DEBUG: Found {len(questions_found)} all_questions_found")
                     if isinstance(questions_found, list) and len(questions_found) > 0:
                         if isinstance(questions_found[0], dict) and 'question' in questions_found[0] and 'answer' in questions_found[0]:
                             for pair in questions_found:
@@ -1212,6 +1216,8 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                                         'source': submission[1],
                                         'status': submission[5] if len(submission) > 5 else 'unknown'
                                     })
+                else:
+                    print(f"DEBUG: No Q&A data found in {submission[1]}, available keys: {list(data.keys())}")
             except Exception as e:
                 print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
                 continue
@@ -1259,7 +1265,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                         hist_embedding = get_question_embedding(qa_pair['question'])
                         if hist_embedding:
                             similarity = calculate_cosine_similarity(question_embedding, hist_embedding)
-                            if similarity > best_score and similarity > 0.7:  # High threshold for semantic similarity
+                            if similarity > best_score and similarity > 0.4:  # Lower threshold for semantic similarity
                                 best_match = qa_pair
                                 best_score = similarity
                                 match_type = "semantic"
@@ -1309,12 +1315,12 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                     word_score = len(common_words) / max(len(question_words), len(hist_words))
                     score += word_score * 0.3
                 
-                if score > best_score and score > 0.3:  # Higher threshold for key phrase matching
+                if score > best_score and score > 0.1:  # Lower threshold for key phrase matching
                     best_match = qa_pair
                     best_score = score
                     match_type = "key_phrase"
         
-        if best_match and best_score > 0.3:
+        if best_match and best_score > 0.1:
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
