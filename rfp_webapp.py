@@ -1180,106 +1180,35 @@ def calculate_smart_match_score(new_question: str, historical_question: str, que
     
     return max(0.0, min(1.0, base_score))
 
-def find_matching_answers_smart_matching(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
-    """Smart matching that combines keyword matching with question type classification"""
-    print("DEBUG: Using smart matching with question classification")
+def find_matching_answers_ai_agent(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
+    """AI agent that learns from all historical Q&A pairs to generate better answers"""
+    print("DEBUG: Using AI learning agent with historical knowledge base")
     
-    # Extract all Q&A pairs from existing submissions
-    all_qa_pairs = []
-    for submission in existing_submissions:
-        if len(submission) > 4 and submission[4]:
-            try:
-                data = json.loads(submission[4])
-                print(f"DEBUG: Submission {submission[1]} has keys: {list(data.keys())}")
-                
-                if 'question_answer_pairs' in data:
-                    pairs = data['question_answer_pairs']
-                    print(f"DEBUG: Found {len(pairs)} question_answer_pairs in {submission[1]}")
-                    for pair in pairs:
-                        if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
-                            all_qa_pairs.append({
-                                'question': pair['question'],
-                                'answer': pair['answer'],
-                                'source': submission[1],
-                                'status': submission[5] if len(submission) > 5 else 'unknown'
-                            })
-                elif 'all_questions_found' in data:
-                    questions_found = data['all_questions_found']
-                    print(f"DEBUG: Found all_questions_found in {submission[1]}: {len(questions_found) if isinstance(questions_found, list) else 'not a list'}")
-                    if isinstance(questions_found, list) and len(questions_found) > 0:
-                        if isinstance(questions_found[0], dict) and 'question' in questions_found[0] and 'answer' in questions_found[0]:
-                            for pair in questions_found:
-                                if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
-                                    all_qa_pairs.append({
-                                        'question': pair['question'],
-                                        'answer': pair['answer'],
-                                        'source': submission[1],
-                                        'status': submission[5] if len(submission) > 5 else 'unknown'
-                                    })
-                else:
-                    print(f"DEBUG: No Q&A data found in {submission[1]}. Available keys: {list(data.keys())}")
-            except Exception as e:
-                print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
-                continue
+    # Build knowledge base from all historical submissions
+    knowledge_base = build_knowledge_base(existing_submissions)
+    print(f"DEBUG: Built knowledge base with {len(knowledge_base)} Q&A pairs")
     
     matches = []
-    used_answers = set()
     
     for i, question in enumerate(questions):
-        print(f"DEBUG: Smart matching question {i+1}/{len(questions)}: {question[:50]}...")
+        print(f"DEBUG: AI agent processing question {i+1}/{len(questions)}: {question[:50]}...")
         
-        # Classify the question type
-        question_type = classify_question_type(question.lower())
-        print(f"DEBUG: Question type: {question_type}")
+        # Use AI to find and synthesize the best answer from knowledge base
+        ai_answer = generate_ai_answer(question, knowledge_base)
         
-        best_match = None
-        best_score = 0
-        
-        # Smart matching with question type awareness
-        question_lower = question.lower()
-        question_words = set(question_lower.split())
-        
-        for qa_pair in all_qa_pairs[:200]:  # Check more pairs for better matches
-            # Skip if we've already used this exact answer
-            answer_hash = hash(qa_pair['answer'][:200])
-            if answer_hash in used_answers:
-                continue
-            
-            # Skip obviously irrelevant answers
-            answer_lower = qa_pair['answer'].lower()
-            if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
-                continue
-            
-            # Skip if answer is just a name/email
-            if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
-                continue
-            
-            # Calculate smart matching score
-            score = calculate_smart_match_score(question, qa_pair['question'], question_type, qa_pair)
-            
-            if score > best_score:
-                best_score = score
-                best_match = qa_pair
-        
-        if best_match and best_score > 0.5:  # Much higher threshold - only match when very confident
-            # Mark this answer as used
-            answer_hash = hash(best_match['answer'][:200])
-            used_answers.add(answer_hash)
-            
-            # Clean brand names from the answer
-            cleaned_answer = clean_brand_names(best_match['answer'])
-            
+        if ai_answer['confidence'] > 30:  # AI found a good answer
             matches.append({
                 "question": question,
-                "suggested_answer": cleaned_answer,
-                "confidence": min(85, int(best_score * 100)),
-                "source_rfp": best_match['source'],
-                "category": "matched",
-                "source_status": best_match['status'],
-                "matching_reason": f"Smart match (score: {best_score:.3f}, type: {question_type})"
+                "suggested_answer": ai_answer['answer'],
+                "confidence": ai_answer['confidence'],
+                "source_rfp": ai_answer['source'],
+                "category": "ai_generated",
+                "source_status": ai_answer['status'],
+                "matching_reason": f"AI agent synthesis (confidence: {ai_answer['confidence']}%)"
             })
         else:
             # Provide a fallback answer based on question type
+            question_type = classify_question_type(question.lower())
             fallback_answer = get_fallback_answer(question, question_type)
             matches.append({
                 "question": question,
@@ -1288,7 +1217,7 @@ def find_matching_answers_smart_matching(questions: List[str], existing_submissi
                 "source_rfp": "None",
                 "category": "no_match",
                 "source_status": "unknown",
-                "matching_reason": f"No match found (best score: {best_score:.3f}, type: {question_type})"
+                "matching_reason": f"AI agent could not find good answer (confidence: {ai_answer['confidence']}%)"
             })
     
     return {
@@ -1297,12 +1226,178 @@ def find_matching_answers_smart_matching(questions: List[str], existing_submissi
         "total_questions_found": len(questions),
         "questions_answered": len(matches),
         "debug_info": {
-            "qa_pairs_found": len(all_qa_pairs),
+            "qa_pairs_found": len(knowledge_base),
             "submissions_processed": len(existing_submissions),
-            "method": "smart_matching",
-            "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
+            "method": "ai_learning_agent",
+            "first_qa_pair": knowledge_base[0] if knowledge_base else None
         }
     }
+
+def build_knowledge_base(existing_submissions: List) -> List[Dict]:
+    """Build a comprehensive knowledge base from all historical submissions"""
+    knowledge_base = []
+    
+    for submission in existing_submissions:
+        if len(submission) > 4 and submission[4]:
+            try:
+                data = json.loads(submission[4])
+                if 'question_answer_pairs' in data:
+                    pairs = data['question_answer_pairs']
+                    for pair in pairs:
+                        if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
+                            knowledge_base.append({
+                                'question': pair['question'],
+                                'answer': pair['answer'],
+                                'source': submission[1],
+                                'status': submission[5] if len(submission) > 5 else 'unknown',
+                                'question_type': classify_question_type(pair['question'].lower())
+                            })
+                elif 'all_questions_found' in data:
+                    questions_found = data['all_questions_found']
+                    if isinstance(questions_found, list) and len(questions_found) > 0:
+                        if isinstance(questions_found[0], dict) and 'question' in questions_found[0] and 'answer' in questions_found[0]:
+                            for pair in questions_found:
+                                if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
+                                    knowledge_base.append({
+                                        'question': pair['question'],
+                                        'answer': pair['answer'],
+                                        'source': pair.get('source', submission[1]),
+                                        'status': submission[5] if len(submission) > 5 else 'unknown',
+                                        'question_type': classify_question_type(pair['question'].lower())
+                                    })
+            except Exception as e:
+                print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
+                continue
+    
+    return knowledge_base
+
+def generate_ai_answer(question: str, knowledge_base: List[Dict]) -> Dict[str, Any]:
+    """Use AI to generate the best answer from the knowledge base"""
+    try:
+        # Find relevant Q&A pairs using semantic similarity
+        relevant_pairs = find_relevant_qa_pairs(question, knowledge_base)
+        
+        if not relevant_pairs:
+            return {
+                'answer': 'No relevant information found in knowledge base.',
+                'confidence': 10,
+                'source': 'None',
+                'status': 'unknown'
+            }
+        
+        # Use AI to synthesize the best answer from relevant pairs
+        synthesis_prompt = f"""
+        You are an expert RFP response specialist. Based on the following question and relevant historical answers, generate the best possible response.
+
+        NEW QUESTION: {question}
+
+        RELEVANT HISTORICAL ANSWERS:
+        """
+        
+        for i, pair in enumerate(relevant_pairs[:5]):  # Use top 5 most relevant
+            synthesis_prompt += f"""
+        Historical Answer {i+1} (from {pair['source']}):
+        Question: {pair['question']}
+        Answer: {pair['answer']}
+        """
+        
+        synthesis_prompt += """
+        
+        INSTRUCTIONS:
+        1. Generate a comprehensive answer that directly addresses the new question
+        2. Use the most relevant information from the historical answers
+        3. Combine multiple relevant answers if needed
+        4. Ensure the answer is specific and actionable
+        5. Clean up any brand names or client-specific information
+        6. Make the answer professional and complete
+        
+        RESPONSE FORMAT (JSON only):
+        {
+            "answer": "Your synthesized answer here",
+            "confidence": 85,
+            "reasoning": "Why this answer is relevant and complete"
+        }
+        """
+        
+        # Call OpenAI to synthesize the answer
+        import openai
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": synthesis_prompt}],
+            max_tokens=1000,
+            temperature=0.3
+        )
+        
+        result = json.loads(response.choices[0].message.content)
+        
+        return {
+            'answer': clean_brand_names(result['answer']),
+            'confidence': result['confidence'],
+            'source': relevant_pairs[0]['source'],
+            'status': relevant_pairs[0]['status']
+        }
+        
+    except Exception as e:
+        print(f"DEBUG: Error in AI answer generation: {e}")
+        return {
+            'answer': 'Error generating AI answer.',
+            'confidence': 10,
+            'source': 'None',
+            'status': 'unknown'
+        }
+
+def find_relevant_qa_pairs(question: str, knowledge_base: List[Dict]) -> List[Dict]:
+    """Find the most relevant Q&A pairs for a given question"""
+    question_lower = question.lower()
+    question_words = set(question_lower.split())
+    question_type = classify_question_type(question_lower)
+    
+    scored_pairs = []
+    
+    for pair in knowledge_base:
+        # Calculate relevance score
+        score = calculate_relevance_score(question, pair['question'], question_type, pair)
+        
+        if score > 0.2:  # Only include reasonably relevant pairs
+            scored_pairs.append((score, pair))
+    
+    # Sort by relevance score and return top matches
+    scored_pairs.sort(key=lambda x: x[0], reverse=True)
+    return [pair for score, pair in scored_pairs[:10]]  # Return top 10 most relevant
+
+def calculate_relevance_score(new_question: str, historical_question: str, question_type: str, pair: Dict) -> float:
+    """Calculate how relevant a historical Q&A pair is to a new question"""
+    new_lower = new_question.lower()
+    hist_lower = historical_question.lower()
+    answer_lower = pair['answer'].lower()
+    
+    # Start with word overlap
+    new_words = set(new_lower.split())
+    hist_words = set(hist_lower.split())
+    common_words = new_words & hist_words
+    
+    if not common_words:
+        return 0.0
+    
+    base_score = len(common_words) / max(len(new_words), len(hist_words))
+    
+    # Boost for same question type
+    if pair.get('question_type') == question_type:
+        base_score += 0.3
+    
+    # Boost for exact phrase matches
+    if any(phrase in hist_lower for phrase in ['sample login', 'demo', 'dependents', 'fitness for duty', 'implementation']):
+        base_score += 0.2
+    
+    # Boost for comprehensive answers
+    if len(pair['answer']) > 100:
+        base_score += 0.1
+    
+    # Penalize very short or generic answers
+    if len(pair['answer']) < 20 or answer_lower in ['yes', 'no', 'n/a', 'tbd']:
+        base_score -= 0.3
+    
+    return max(0.0, min(1.0, base_score))
 
 # # def find_matching_answers_embeddings(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
 # #     """Find matching answers using embeddings for all questions - quality over speed"""
@@ -2803,19 +2898,19 @@ def show_process_page(client):
                         except:
                             st.write(f"  - Error parsing data")
                 
-            # Find matching answers using smart matching
-            matches = find_matching_answers_smart_matching(questions, existing_submissions)
+            # Find matching answers using AI learning agent
+            matches = find_matching_answers_ai_agent(questions, existing_submissions)
             
-            # Show debug info from smart matching
+            # Show debug info from AI agent
             if "debug_info" in matches:
-                st.write("🔍 **Debug: Smart Matching Results**")
+                st.write("🔍 **Debug: AI Learning Agent Results**")
                 st.write(f"Method: {matches['debug_info']['method']}")
-                st.write(f"Q&A pairs found: {matches['debug_info']['qa_pairs_found']}")
+                st.write(f"Knowledge base size: {matches['debug_info']['qa_pairs_found']} Q&A pairs")
                 st.write(f"Submissions processed: {matches['debug_info']['submissions_processed']}")
                 if matches['debug_info'].get('first_qa_pair'):
-                    st.write(f"First Q&A pair: {matches['debug_info']['first_qa_pair']['question'][:100]}...")
+                    st.write(f"Sample knowledge: {matches['debug_info']['first_qa_pair']['question'][:100]}...")
                 else:
-                    st.write("No Q&A pairs found in any submission")
+                    st.write("No knowledge base built from submissions")
                 
                 st.success("✅ RFP processed successfully!")
                 
