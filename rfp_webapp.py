@@ -1154,7 +1154,8 @@ def find_matching_answers_simple_fallback(questions: List[str], existing_submiss
         "debug_info": {
             "qa_pairs_found": len(all_qa_pairs),
             "submissions_processed": len(existing_submissions),
-            "method": "simple_fallback"
+            "method": "simple_fallback",
+            "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
         }
     }
 
@@ -2665,7 +2666,7 @@ def show_process_page(client):
                     st.write("🔍 **Debug: Semantic Matching Results**")
                     st.write(f"Q&A pairs found: {matches['debug_info']['qa_pairs_found']}")
                     st.write(f"Submissions processed: {matches['debug_info']['submissions_processed']}")
-                    if matches['debug_info']['first_qa_pair']:
+                    if matches['debug_info'].get('first_qa_pair'):
                         st.write(f"First Q&A pair: {matches['debug_info']['first_qa_pair']['question'][:100]}...")
                     else:
                         st.write("No Q&A pairs found in any submission")
