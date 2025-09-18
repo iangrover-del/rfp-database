@@ -1190,9 +1190,12 @@ def find_matching_answers_smart_matching(questions: List[str], existing_submissi
         if len(submission) > 4 and submission[4]:
             try:
                 data = json.loads(submission[4])
+                print(f"DEBUG: Submission {submission[1]} has keys: {list(data.keys())}")
                 
                 if 'question_answer_pairs' in data:
-                    for pair in data['question_answer_pairs']:
+                    pairs = data['question_answer_pairs']
+                    print(f"DEBUG: Found {len(pairs)} question_answer_pairs in {submission[1]}")
+                    for pair in pairs:
                         if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
                             all_qa_pairs.append({
                                 'question': pair['question'],
@@ -1202,6 +1205,7 @@ def find_matching_answers_smart_matching(questions: List[str], existing_submissi
                             })
                 elif 'all_questions_found' in data:
                     questions_found = data['all_questions_found']
+                    print(f"DEBUG: Found all_questions_found in {submission[1]}: {len(questions_found) if isinstance(questions_found, list) else 'not a list'}")
                     if isinstance(questions_found, list) and len(questions_found) > 0:
                         if isinstance(questions_found[0], dict) and 'question' in questions_found[0] and 'answer' in questions_found[0]:
                             for pair in questions_found:
@@ -1212,6 +1216,8 @@ def find_matching_answers_smart_matching(questions: List[str], existing_submissi
                                         'source': submission[1],
                                         'status': submission[5] if len(submission) > 5 else 'unknown'
                                     })
+                else:
+                    print(f"DEBUG: No Q&A data found in {submission[1]}. Available keys: {list(data.keys())}")
             except Exception as e:
                 print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
                 continue
