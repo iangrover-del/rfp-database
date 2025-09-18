@@ -1041,9 +1041,138 @@ def should_use_embeddings(question: str) -> bool:
     """Use embeddings for ALL questions - quality over speed"""
     return True  # Always use embeddings for best quality
 
-def find_matching_answers_simple_fallback(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
-    """Simple keyword-based fallback matching when embeddings fail"""
-    print("DEBUG: Using simple fallback matching")
+def classify_question_type(question: str) -> str:
+    """Classify the type of question for better matching"""
+    question_lower = question.lower()
+    
+    # Network/Provider count questions
+    if any(word in question_lower for word in ['how many', 'total', 'in-person', 'virtual', 'therapists', 'coaches', 'psychiatrists', 'nurse practitioner']):
+        return 'network_count'
+    
+    # Demo/Login questions
+    if any(word in question_lower for word in ['sample', 'demo', 'login', 'log-in', 'capabilities']):
+        return 'demo_login'
+    
+    # Dependents/Eligibility questions
+    if any(word in question_lower for word in ['dependents', 'definition', 'eligible', 'eligibility']):
+        return 'dependents_eligibility'
+    
+    # Fitness-for-duty questions
+    if any(word in question_lower for word in ['fitness-for-duty', 'fitness for duty', 'standards', 'process', 'delivery time']):
+        return 'fitness_for_duty'
+    
+    # Implementation questions
+    if any(word in question_lower for word in ['implementation', 'timeline', 'plan', 'timing']):
+        return 'implementation'
+    
+    # Pricing/Fee questions
+    if any(word in question_lower for word in ['fees', 'pricing', 'cost', 'guaranteed', 'roi', 'offset']):
+        return 'pricing_fees'
+    
+    # Network table questions
+    if any(word in question_lower for word in ['complete the table', 'geo access', 'wait times', 'appointment']):
+        return 'network_table'
+    
+    # Account management questions
+    if any(word in question_lower for word in ['account management', 'team', 'support']):
+        return 'account_management'
+    
+    # LOA/CISM questions
+    if any(word in question_lower for word in ['leave of absence', 'loa', 'cism', 'manager referrals']):
+        return 'loa_cism'
+    
+    # Default
+    return 'general'
+
+def calculate_smart_match_score(new_question: str, historical_question: str, question_type: str, qa_pair: dict) -> float:
+    """Calculate smart matching score based on question type and content"""
+    new_lower = new_question.lower()
+    hist_lower = historical_question.lower()
+    answer_lower = qa_pair['answer'].lower()
+    
+    # Start with basic word overlap
+    new_words = set(new_lower.split())
+    hist_words = set(hist_lower.split())
+    common_words = new_words & hist_words
+    
+    if not common_words:
+        return 0.0
+    
+    base_score = len(common_words) / max(len(new_words), len(hist_words))
+    
+    # Question type specific scoring
+    if question_type == 'network_count':
+        # For network questions, boost if historical answer contains numbers
+        if any(char.isdigit() for char in qa_pair['answer']):
+            base_score += 0.3
+        else:
+            base_score -= 0.4  # Penalize non-numeric answers for count questions
+    
+    elif question_type == 'demo_login':
+        # For demo questions, look for demo-related content
+        if any(word in answer_lower for word in ['demo', 'sample', 'login', 'access', 'portal', 'platform']):
+            base_score += 0.4
+        elif any(word in answer_lower for word in ['engagement', 'assessment', 'matching']):
+            base_score -= 0.3  # Penalize engagement answers for demo questions
+    
+    elif question_type == 'dependents_eligibility':
+        # For dependents questions, look for eligibility/definition content
+        if any(word in answer_lower for word in ['eligible', 'definition', 'dependents', 'family', 'spouse', 'children']):
+            base_score += 0.4
+        elif any(word in answer_lower for word in ['ages', 'support', '0+', '13+']):
+            base_score += 0.2  # Age info is relevant for dependents
+    
+    elif question_type == 'fitness_for_duty':
+        # For fitness-for-duty, look for process/standards content
+        if any(word in answer_lower for word in ['process', 'standards', 'delivery', 'time', 'fitness', 'duty']):
+            base_score += 0.4
+        elif any(word in answer_lower for word in ['references', 'contact', 'reach out']):
+            base_score -= 0.5  # Penalize contact info for process questions
+    
+    elif question_type == 'implementation':
+        # For implementation questions, look for timeline/plan content
+        if any(word in answer_lower for word in ['timeline', 'implementation', 'plan', 'weeks', 'months', 'phases']):
+            base_score += 0.4
+    
+    elif question_type == 'pricing_fees':
+        # For pricing questions, look for financial content
+        if any(word in answer_lower for word in ['fees', 'pricing', 'cost', 'guaranteed', 'roi', 'offset', 'risk']):
+            base_score += 0.4
+    
+    elif question_type == 'network_table':
+        # For network table questions, look for geographic/network content
+        if any(word in answer_lower for word in ['network', 'providers', 'coverage', 'states', 'countries', 'access']):
+            base_score += 0.3
+    
+    elif question_type == 'account_management':
+        # For account management questions, look for team/support content
+        if any(word in answer_lower for word in ['team', 'manager', 'support', 'account', 'success']):
+            base_score += 0.3
+    
+    elif question_type == 'loa_cism':
+        # For LOA/CISM questions, look for process/crisis content
+        if any(word in answer_lower for word in ['leave', 'absence', 'cism', 'crisis', 'incident', 'process']):
+            base_score += 0.4
+    
+    # Boost for exact phrase matches
+    if any(phrase in hist_lower for phrase in ['sample login', 'demo', 'dependents definition', 'fitness for duty', 'implementation timeline']):
+        base_score += 0.2
+    
+    # Penalize obviously wrong matches
+    if question_type == 'demo_login' and any(word in answer_lower for word in ['engagement', 'assessment', 'matching']):
+        base_score -= 0.4
+    
+    if question_type == 'dependents_eligibility' and any(word in answer_lower for word in ['engagement', 'assessment', 'matching']):
+        base_score -= 0.4
+    
+    if question_type == 'fitness_for_duty' and any(word in answer_lower for word in ['references', 'contact', 'reach out']):
+        base_score -= 0.5
+    
+    return max(0.0, min(1.0, base_score))
+
+def find_matching_answers_smart_matching(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
+    """Smart matching that combines keyword matching with question type classification"""
+    print("DEBUG: Using smart matching with question classification")
     
     # Extract all Q&A pairs from existing submissions
     all_qa_pairs = []
@@ -1081,16 +1210,20 @@ def find_matching_answers_simple_fallback(questions: List[str], existing_submiss
     used_answers = set()
     
     for i, question in enumerate(questions):
-        print(f"DEBUG: Simple matching question {i+1}/{len(questions)}: {question[:50]}...")
+        print(f"DEBUG: Smart matching question {i+1}/{len(questions)}: {question[:50]}...")
+        
+        # Classify the question type
+        question_type = classify_question_type(question.lower())
+        print(f"DEBUG: Question type: {question_type}")
         
         best_match = None
         best_score = 0
         
-        # Simple keyword-based matching
+        # Smart matching with question type awareness
         question_lower = question.lower()
         question_words = set(question_lower.split())
         
-        for qa_pair in all_qa_pairs[:100]:  # Limit for speed
+        for qa_pair in all_qa_pairs[:200]:  # Check more pairs for better matches
             # Skip if we've already used this exact answer
             answer_hash = hash(qa_pair['answer'][:200])
             if answer_hash in used_answers:
@@ -1105,18 +1238,14 @@ def find_matching_answers_simple_fallback(questions: List[str], existing_submiss
             if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
                 continue
             
-            # Calculate simple word overlap score
-            hist_question_lower = qa_pair['question'].lower()
-            hist_words = set(hist_question_lower.split())
+            # Calculate smart matching score
+            score = calculate_smart_match_score(question, qa_pair['question'], question_type, qa_pair)
             
-            common_words = question_words & hist_words
-            if common_words:
-                score = len(common_words) / max(len(question_words), len(hist_words))
-                if score > best_score:
-                    best_score = score
-                    best_match = qa_pair
+            if score > best_score:
+                best_score = score
+                best_match = qa_pair
         
-        if best_match and best_score > 0.1:  # Lower threshold for simple matching
+        if best_match and best_score > 0.2:  # Higher threshold for quality
             # Mark this answer as used
             answer_hash = hash(best_match['answer'][:200])
             used_answers.add(answer_hash)
@@ -1127,15 +1256,15 @@ def find_matching_answers_simple_fallback(questions: List[str], existing_submiss
             matches.append({
                 "question": question,
                 "suggested_answer": cleaned_answer,
-                "confidence": min(70, int(best_score * 100)),
+                "confidence": min(85, int(best_score * 100)),
                 "source_rfp": best_match['source'],
                 "category": "matched",
                 "source_status": best_match['status'],
-                "matching_reason": f"Simple match (score: {best_score:.3f})"
+                "matching_reason": f"Smart match (score: {best_score:.3f}, type: {question_type})"
             })
         else:
             # Provide a fallback answer based on question type
-            fallback_answer = get_fallback_answer(question, classify_question_type(question.lower()))
+            fallback_answer = get_fallback_answer(question, question_type)
             matches.append({
                 "question": question,
                 "suggested_answer": fallback_answer,
@@ -1143,7 +1272,7 @@ def find_matching_answers_simple_fallback(questions: List[str], existing_submiss
                 "source_rfp": "None",
                 "category": "no_match",
                 "source_status": "unknown",
-                "matching_reason": f"No match found (best score: {best_score:.3f})"
+                "matching_reason": f"No match found (best score: {best_score:.3f}, type: {question_type})"
             })
     
     return {
@@ -1154,7 +1283,7 @@ def find_matching_answers_simple_fallback(questions: List[str], existing_submiss
         "debug_info": {
             "qa_pairs_found": len(all_qa_pairs),
             "submissions_processed": len(existing_submissions),
-            "method": "simple_fallback",
+            "method": "smart_matching",
             "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
         }
     }
@@ -2658,18 +2787,19 @@ def show_process_page(client):
                         except:
                             st.write(f"  - Error parsing data")
                 
-                # Find matching answers using semantic similarity
-                matches = find_matching_answers_simple_fallback(questions, existing_submissions)
-                
-                # Show debug info from semantic matching
-                if "debug_info" in matches:
-                    st.write("🔍 **Debug: Semantic Matching Results**")
-                    st.write(f"Q&A pairs found: {matches['debug_info']['qa_pairs_found']}")
-                    st.write(f"Submissions processed: {matches['debug_info']['submissions_processed']}")
-                    if matches['debug_info'].get('first_qa_pair'):
-                        st.write(f"First Q&A pair: {matches['debug_info']['first_qa_pair']['question'][:100]}...")
-                    else:
-                        st.write("No Q&A pairs found in any submission")
+            # Find matching answers using smart matching
+            matches = find_matching_answers_smart_matching(questions, existing_submissions)
+            
+            # Show debug info from smart matching
+            if "debug_info" in matches:
+                st.write("🔍 **Debug: Smart Matching Results**")
+                st.write(f"Method: {matches['debug_info']['method']}")
+                st.write(f"Q&A pairs found: {matches['debug_info']['qa_pairs_found']}")
+                st.write(f"Submissions processed: {matches['debug_info']['submissions_processed']}")
+                if matches['debug_info'].get('first_qa_pair'):
+                    st.write(f"First Q&A pair: {matches['debug_info']['first_qa_pair']['question'][:100]}...")
+                else:
+                    st.write("No Q&A pairs found in any submission")
                 
                 st.success("✅ RFP processed successfully!")
                 
