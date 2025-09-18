@@ -2910,6 +2910,8 @@ def show_process_page(client):
                         except:
                             st.write(f"  - Error parsing data")
                 
+            print("DEBUG: Finished showing historical data, about to call AI learning agent")
+            st.write("🔍 **Debug: About to call AI learning agent**")
             print("DEBUG: About to call AI learning agent")
             try:
                 # Find matching answers using AI learning agent
