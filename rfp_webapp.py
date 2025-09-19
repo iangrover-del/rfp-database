@@ -1244,7 +1244,7 @@ def is_answer_relevant_to_question(question_lower: str, answer_lower: str) -> bo
 
 def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
     """AI-powered matching that uses OpenAI to understand questions and generate relevant answers"""
-    print("DEBUG: Using machine learning with embeddings and semantic similarity")
+    print("DEBUG: Using intelligent matching without API calls")
     
     # Extract all Q&A pairs from existing submissions
     all_qa_pairs = []
@@ -1289,78 +1289,84 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
     matches = []
     
     for i, question in enumerate(questions):
-        print(f"DEBUG: ML processing question {i+1}/{len(questions)}: {question[:50]}...")
+        print(f"DEBUG: Processing question {i+1}/{len(questions)}: {question[:50]}...")
         
-        try:
-            # Get embedding for the question
-            question_embedding = get_question_embedding(question)
-            if not question_embedding:
-                print(f"DEBUG: Could not get embedding for question {i+1}")
-                matches.append({
-                    "question": question,
-                    "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
-                    "confidence": 10,
-                    "source_rfp": "None",
-                    "category": "no_match",
-                    "source_status": "unknown",
-                    "matching_reason": "Could not get question embedding"
-                })
+        best_match = None
+        best_score = 0
+        question_lower = question.lower()
+        question_words = set(question_lower.split())
+        
+        # Simple but intelligent matching
+        for qa_pair in all_qa_pairs[:150]:  # Check more pairs for better results
+            # Skip obviously irrelevant answers
+            answer_lower = qa_pair['answer'].lower()
+            if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
                 continue
             
-            best_match = None
-            best_similarity = 0
+            # Skip if answer is just a name/email
+            if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
+                continue
             
-            # Find the most semantically similar Q&A pair
-            for qa_pair in all_qa_pairs[:200]:  # Check more pairs for better results
-                # Skip obviously irrelevant answers
-                answer_lower = qa_pair['answer'].lower()
-                if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
-                    continue
-                
-                # Skip if answer is just a name/email
-                if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
-                    continue
-                
-                # Get embedding for the historical question
-                hist_embedding = get_question_embedding(qa_pair['question'])
-                if not hist_embedding:
-                    continue
-                
-                # Calculate cosine similarity
-                similarity = calculate_cosine_similarity(question_embedding, hist_embedding)
-                
-                if similarity > best_similarity:
-                    best_similarity = similarity
-                    best_match = qa_pair
+            # Calculate intelligent matching score
+            hist_question_lower = qa_pair['question'].lower()
+            hist_words = set(hist_question_lower.split())
             
-            # Use a lower threshold for ML matching
-            if best_match and best_similarity > 0.3:  # Lower threshold for embeddings
-                # Clean brand names from the answer
-                cleaned_answer = clean_brand_names(best_match['answer'])
-                
-                matches.append({
-                    "question": question,
-                    "suggested_answer": cleaned_answer,
-                    "confidence": min(85, int(best_similarity * 100)),
-                    "source_rfp": best_match['source'],
-                    "category": "ml_matched",
-                    "source_status": best_match['status'],
-                    "matching_reason": f"ML similarity (score: {best_similarity:.3f})"
-                })
-            else:
-                # Provide a fallback answer
-                matches.append({
-                    "question": question,
-                    "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
-                    "confidence": 10,
-                    "source_rfp": "None",
-                    "category": "no_match",
-                    "source_status": "unknown",
-                    "matching_reason": f"No ML match found (best similarity: {best_similarity:.3f})"
-                })
-                
-        except Exception as e:
-            print(f"DEBUG: Error in ML processing for question {i+1}: {e}")
+            score = 0
+            
+            # 1. Exact phrase matching (highest priority)
+            important_phrases = [
+                'geo access', 'sample login', 'visit limit', 'eligibility file', 
+                'definition of dependents', 'fitness for duty', 'leave of absence',
+                'implementation timeline', 'health plan integration', 'fees',
+                'performance guarantees', 'roi estimate', 'fees at risk',
+                'mental health coaches', 'therapists', 'psychiatrists', 'nurse practitioner',
+                'in-person', 'virtual', 'adults', 'child', 'adolescents', 'ages',
+                'wait times', 'appointment', 'account management', 'team',
+                'utilization assumption', 'financial template', 'guaranteed', 'three years',
+                'offset costs', 'carrier', 'anthem', 'health plan integration'
+            ]
+            
+            for phrase in important_phrases:
+                if phrase in question_lower and phrase in hist_question_lower:
+                    score += 0.8  # Very high boost for exact phrase matches
+            
+            # 2. Word overlap with context awareness
+            common_words = question_words & hist_words
+            if common_words:
+                word_score = len(common_words) / max(len(question_words), len(hist_words))
+                score += word_score * 0.4
+            
+            # 3. Boost for question type matches
+            if 'how many' in question_lower and 'how many' in hist_question_lower:
+                score += 0.3
+            if 'definition' in question_lower and 'definition' in hist_question_lower:
+                score += 0.3
+            if 'timeline' in question_lower and 'timeline' in hist_question_lower:
+                score += 0.3
+            
+            # 4. Penalty for obviously irrelevant content
+            if any(word in answer_lower for word in ['kit', 'topic', 'adoption', 'assisted living', 'career', 'college']):
+                score -= 0.5
+            
+            if score > best_score and score > 0.2:  # Reasonable threshold
+                best_match = qa_pair
+                best_score = score
+        
+        if best_match and best_score > 0.2:
+            # Clean brand names from the answer
+            cleaned_answer = clean_brand_names(best_match['answer'])
+            
+            matches.append({
+                "question": question,
+                "suggested_answer": cleaned_answer,
+                "confidence": min(80, int(best_score * 100)),
+                "source_rfp": best_match['source'],
+                "category": "intelligent_match",
+                "source_status": best_match['status'],
+                "matching_reason": f"Intelligent match (score: {best_score:.3f})"
+            })
+        else:
+            # Provide a fallback answer
             matches.append({
                 "question": question,
                 "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
@@ -1368,7 +1374,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 "source_rfp": "None",
                 "category": "no_match",
                 "source_status": "unknown",
-                "matching_reason": f"ML processing error: {str(e)[:50]}"
+                "matching_reason": f"No match found (best score: {best_score:.3f})"
             })
     
     return {
@@ -1379,7 +1385,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         "debug_info": {
             "qa_pairs_found": len(all_qa_pairs),
             "submissions_processed": len(existing_submissions),
-            "method": "ml_embeddings",
+            "method": "intelligent_matching",
             "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
         }
     }
