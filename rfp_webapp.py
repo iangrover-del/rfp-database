@@ -1705,7 +1705,7 @@ def find_relevant_historical_answers(question: str, knowledge_base: List[Dict]) 
                 relevance_score += 0.3
         
         # Only include if relevance score is above threshold
-        if relevance_score > 0.2:
+        if relevance_score > 0.3:  # Increased threshold for better relevance
             relevant_answers.append({
                 'question': qa_pair['question'],
                 'answer': hist_answer,
@@ -1746,14 +1746,15 @@ INSTRUCTIONS:
 5. Do NOT mention other company names or brands
 6. Focus on the most relevant and accurate information
 7. If historical answers conflict, choose the most recent or most detailed one
+8. Make sure the answer directly addresses the question asked
 
 Generate a professional RFP response:"""
 
-        # Call OpenAI API
+        # Call OpenAI API with error handling
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are an expert RFP response writer specializing in mental health and EAP services."},
+                {"role": "system", "content": "You are an expert RFP response writer specializing in mental health and EAP services. Always provide direct, relevant answers to the specific question asked."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=500,
@@ -1765,6 +1766,29 @@ Generate a professional RFP response:"""
         # Clean up the answer
         if synthesized_answer.startswith("Based on the historical data"):
             synthesized_answer = synthesized_answer.split("\n", 1)[1] if "\n" in synthesized_answer else synthesized_answer
+        
+        # Validate that the answer is relevant to the question
+        if len(synthesized_answer) < 20:
+            print(f"DEBUG: AI synthesis returned too short answer: {synthesized_answer}")
+            return ""
+        
+        # Check if answer seems relevant (basic validation)
+        question_lower = question.lower()
+        answer_lower = synthesized_answer.lower()
+        
+        # If question is about specific topics, make sure answer addresses them
+        if 'eligibility' in question_lower and 'eligibility' not in answer_lower:
+            print(f"DEBUG: Answer doesn't address eligibility question")
+            return ""
+        elif 'dependent' in question_lower and 'dependent' not in answer_lower:
+            print(f"DEBUG: Answer doesn't address dependent question")
+            return ""
+        elif 'fitness' in question_lower and 'fitness' not in answer_lower:
+            print(f"DEBUG: Answer doesn't address fitness question")
+            return ""
+        elif 'leave' in question_lower and 'leave' not in answer_lower:
+            print(f"DEBUG: Answer doesn't address leave question")
+            return ""
         
         return synthesized_answer
         
