@@ -1180,6 +1180,130 @@ def calculate_smart_match_score(new_question: str, historical_question: str, que
     
     return max(0.0, min(1.0, base_score))
 
+def calculate_keyword_match_score(current_question: str, historical_question: str, answer: str) -> float:
+    """Calculate keyword-based similarity score between questions and validate answer relevance"""
+    
+    # Extract key terms from current question
+    current_words = set(current_question.lower().split())
+    
+    # Extract key terms from historical question
+    hist_words = set(historical_question.lower().split())
+    
+    # Remove common stop words
+    stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'please', 'provide', 'outline', 'discuss', 'detail', 'complete', 'use', 'attach', 'include', 'ensure', 'note', 'confirm', 'reconfirm'}
+    current_words = current_words - stop_words
+    hist_words = hist_words - stop_words
+    
+    # Calculate word overlap
+    if not current_words or not hist_words:
+        return 0.0
+    
+    overlap = len(current_words.intersection(hist_words))
+    word_score = overlap / max(len(current_words), len(hist_words))
+    
+    # Boost for specific question types and keywords
+    boost = 0.0
+    
+    # Geo Access questions
+    if 'geo' in current_question and 'access' in current_question:
+        if any(word in historical_question for word in ['geo', 'access', 'network', 'coverage', 'geographic']):
+            boost += 0.3
+        if any(word in answer for word in ['network', 'coverage', 'geographic', 'states', 'locations', 'providers', 'census']):
+            boost += 0.2
+    
+    # Provider count questions
+    if 'how many' in current_question and any(word in current_question for word in ['coaches', 'therapists', 'psychiatrists']):
+        if any(word in historical_question for word in ['how many', 'coaches', 'therapists', 'psychiatrists', 'providers']):
+            boost += 0.3
+        if any(char.isdigit() for char in answer) or any(word in answer for word in ['coach', 'therapist', 'psychiatrist', 'provider', 'network']):
+            boost += 0.2
+    
+    # Implementation questions
+    if 'implementation' in current_question:
+        if 'implementation' in historical_question:
+            boost += 0.3
+        if any(word in answer for word in ['implementation', 'timeline', 'process', 'plan', 'deployment', 'launch', 'weeks', 'months']):
+            boost += 0.2
+    
+    # Fee/Financial questions
+    if any(word in current_question for word in ['fee', 'cost', 'price', 'guarantee', 'risk', 'roi']):
+        if any(word in historical_question for word in ['fee', 'cost', 'price', 'guarantee', 'risk', 'roi', 'financial']):
+            boost += 0.3
+        if any(word in answer for word in ['fee', 'cost', 'price', 'guarantee', 'risk', 'roi', 'financial', 'dollar', '$']):
+            boost += 0.2
+    
+    # Eligibility questions
+    if 'eligibility' in current_question:
+        if 'eligibility' in historical_question:
+            boost += 0.3
+        if any(word in answer for word in ['eligibility', 'eligible', 'file', 'data', 'employee', 'member']):
+            boost += 0.2
+    
+    # Dependent questions
+    if 'dependent' in current_question:
+        if 'dependent' in historical_question:
+            boost += 0.3
+        if any(word in answer for word in ['dependent', 'spouse', 'child', 'family', 'eligible']):
+            boost += 0.2
+    
+    # Wait time questions
+    if any(word in current_question for word in ['wait time', 'appointment', 'schedule']):
+        if any(word in historical_question for word in ['wait', 'time', 'appointment', 'schedule']):
+            boost += 0.3
+        if any(word in answer for word in ['time', 'hour', 'day', 'appointment', 'schedule', 'wait', 'minutes', 'hours', 'days']):
+            boost += 0.2
+    
+    # Sample login/demo questions
+    if any(word in current_question for word in ['sample', 'login', 'demo']):
+        if any(word in historical_question for word in ['sample', 'login', 'demo', 'portal', 'platform']):
+            boost += 0.3
+        if any(word in answer for word in ['login', 'demo', 'portal', 'platform', 'app', 'website', 'sample']):
+            boost += 0.2
+    
+    # Fitness-for-duty questions
+    if 'fitness' in current_question and 'duty' in current_question:
+        if any(word in historical_question for word in ['fitness', 'duty', 'evaluation', 'assessment']):
+            boost += 0.3
+        if any(word in answer for word in ['fitness', 'duty', 'evaluation', 'assessment', 'process']):
+            boost += 0.2
+    
+    # Leave of absence questions
+    if any(word in current_question for word in ['leave', 'absence', 'loa']):
+        if any(word in historical_question for word in ['leave', 'absence', 'loa', 'process']):
+            boost += 0.3
+        if any(word in answer for word in ['leave', 'absence', 'loa', 'process', 'flow']):
+            boost += 0.2
+    
+    # Health plan integration questions
+    if any(word in current_question for word in ['health plan', 'integration', 'hpi']):
+        if any(word in historical_question for word in ['health', 'plan', 'integration', 'hpi']):
+            boost += 0.3
+        if any(word in answer for word in ['health', 'plan', 'integration', 'hpi', 'carrier']):
+            boost += 0.2
+    
+    # Performance guarantee questions
+    if 'performance' in current_question and 'guarantee' in current_question:
+        if any(word in historical_question for word in ['performance', 'guarantee', 'risk']):
+            boost += 0.3
+        if any(word in answer for word in ['performance', 'guarantee', 'risk', 'fee', 'at risk']):
+            boost += 0.2
+    
+    # Account management questions
+    if any(word in current_question for word in ['account', 'management', 'team']):
+        if any(word in historical_question for word in ['account', 'manager', 'team', 'support']):
+            boost += 0.3
+        if any(word in answer for word in ['account', 'manager', 'team', 'support', 'contact']):
+            boost += 0.2
+    
+    # Penalize generic answers
+    generic_phrases = ['enhance', 'program', 'resources', 'access points', 'employees', 'dependents', 'offers', 'provides', 'includes', 'features', 'capabilities', 'services', 'programs', 'confirmed', 'yes']
+    if any(phrase in answer for phrase in generic_phrases):
+        boost -= 0.3
+    
+    # Final score
+    final_score = word_score + boost
+    return max(0.0, min(1.0, final_score))
+
 def is_answer_relevant_to_question(question_lower: str, answer_lower: str) -> bool:
     """Check if an answer is relevant to the question being asked - ENHANCED VERSION"""
     
@@ -1252,8 +1376,8 @@ def is_answer_relevant_to_question(question_lower: str, answer_lower: str) -> bo
     return len(answer_lower) > 20 and not any(phrase in answer_lower for phrase in generic_phrases)
 
 def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
-    """AI-powered matching using OpenAI embeddings for semantic similarity"""
-    print("DEBUG: Using AI-powered semantic matching with embeddings")
+    """Present raw historical data for manual review instead of automated matching"""
+    print("DEBUG: Presenting raw historical data for manual review")
     
     # Extract all Q&A pairs from existing submissions
     all_qa_pairs = []
@@ -1301,100 +1425,88 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
     if not isinstance(matches, list):
         matches = []
     
-    for i, question in enumerate(questions):
-        print(f"DEBUG: AI processing question {i+1}/{len(questions)}: {question[:50]}...")
+    # Group Q&A pairs by topic for easier review
+    topic_groups = {
+        'provider_counts': [],
+        'implementation': [],
+        'fees_pricing': [],
+        'eligibility': [],
+        'geo_access': [],
+        'wait_times': [],
+        'other': []
+    }
+    
+    for qa_pair in all_qa_pairs:
+        question_lower = qa_pair['question'].lower()
+        answer_lower = qa_pair['answer'].lower()
         
-        try:
-            # Get embedding for the current question
-            question_embedding = get_question_embedding(question)
-            if not question_embedding:
-                print(f"DEBUG: Could not get embedding for question {i+1}")
-                matches.append({
-                    "question": question,
-                    "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
-                    "confidence": 10,
-                    "source_rfp": "None",
-                    "category": "no_match",
-                    "source_status": "unknown",
-                    "matching_reason": "Could not get question embedding"
-                })
-                continue
+        # Categorize by topic
+        if any(word in question_lower for word in ['how many', 'coaches', 'therapists', 'psychiatrists', 'providers']):
+            topic_groups['provider_counts'].append(qa_pair)
+        elif 'implementation' in question_lower:
+            topic_groups['implementation'].append(qa_pair)
+        elif any(word in question_lower for word in ['fee', 'cost', 'price', 'guarantee', 'risk', 'roi']):
+            topic_groups['fees_pricing'].append(qa_pair)
+        elif 'eligibility' in question_lower:
+            topic_groups['eligibility'].append(qa_pair)
+        elif 'geo' in question_lower and 'access' in question_lower:
+            topic_groups['geo_access'].append(qa_pair)
+        elif any(word in question_lower for word in ['wait time', 'appointment', 'schedule']):
+            topic_groups['wait_times'].append(qa_pair)
+        else:
+            topic_groups['other'].append(qa_pair)
+    
+    # For each question, show relevant historical data
+    for i, question in enumerate(questions):
+        print(f"DEBUG: Presenting historical data for question {i+1}/{len(questions)}: {question[:50]}...")
+        
+        # Find relevant topic groups
+        question_lower = question.lower()
+        relevant_groups = []
+        
+        if any(word in question_lower for word in ['how many', 'coaches', 'therapists', 'psychiatrists', 'providers']):
+            relevant_groups.extend(topic_groups['provider_counts'])
+        if 'implementation' in question_lower:
+            relevant_groups.extend(topic_groups['implementation'])
+        if any(word in question_lower for word in ['fee', 'cost', 'price', 'guarantee', 'risk', 'roi']):
+            relevant_groups.extend(topic_groups['fees_pricing'])
+        if 'eligibility' in question_lower:
+            relevant_groups.extend(topic_groups['eligibility'])
+        if 'geo' in question_lower and 'access' in question_lower:
+            relevant_groups.extend(topic_groups['geo_access'])
+        if any(word in question_lower for word in ['wait time', 'appointment', 'schedule']):
+            relevant_groups.extend(topic_groups['wait_times'])
+        
+        # If no specific matches, show other relevant data
+        if not relevant_groups:
+            relevant_groups = topic_groups['other'][:5]  # Show top 5 other items
+        
+        # Create a summary of relevant historical data
+        if relevant_groups:
+            historical_summary = "Relevant historical data found:\n\n"
+            for j, qa_pair in enumerate(relevant_groups[:3]):  # Show top 3 most relevant
+                historical_summary += f"Historical Q{j+1}: {qa_pair['question'][:100]}...\n"
+                historical_summary += f"Historical A{j+1}: {qa_pair['answer'][:200]}...\n"
+                historical_summary += f"Source: {qa_pair['source']}\n\n"
             
-            best_match = None
-            best_similarity = 0
-            
-            # Find the most semantically similar Q&A pair using AI embeddings
-            for qa_pair in all_qa_pairs[:200]:  # Check more pairs for better results
-                # Skip obviously irrelevant answers
-                answer_lower = qa_pair['answer'].lower()
-                if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
-                    continue
-                
-                # Skip if answer is just a name/email
-                if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
-                    continue
-                
-                # Get embedding for the historical question
-                hist_embedding = get_question_embedding(qa_pair['question'])
-                if not hist_embedding:
-                    continue
-                
-                # Calculate cosine similarity using AI embeddings
-                similarity = calculate_cosine_similarity(question_embedding, hist_embedding)
-                
-                if similarity > best_similarity:
-                    best_similarity = similarity
-                    best_match = qa_pair
-            
-            # Use AI-powered threshold for semantic matching with relevance checking
-            if best_match and best_similarity > 0.3:  # AI semantic threshold
-                # Additional relevance check to ensure the answer is actually relevant
-                if is_answer_relevant_to_question(question.lower(), best_match['answer'].lower()):
-                    # Clean brand names from the answer
-                    cleaned_answer = clean_brand_names(best_match['answer'])
-                    
-                    matches.append({
-                        "question": question,
-                        "suggested_answer": cleaned_answer,
-                        "confidence": min(85, int(best_similarity * 100)),
-                        "source_rfp": best_match['source'],
-                        "category": "ai_semantic_match",
-                        "source_status": best_match['status'],
-                        "matching_reason": f"AI semantic similarity (score: {best_similarity:.3f})"
-                    })
-                else:
-                    # High similarity but not relevant - provide fallback
-                    matches.append({
-                        "question": question,
-                        "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
-                        "confidence": 10,
-                        "source_rfp": "None",
-                        "category": "no_match",
-                        "source_status": "unknown",
-                        "matching_reason": f"High similarity ({best_similarity:.3f}) but answer not relevant to question"
-                    })
-            else:
-                # Provide a fallback answer
-                matches.append({
-                    "question": question,
-                    "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
-                    "confidence": 10,
-                    "source_rfp": "None",
-                    "category": "no_match",
-                    "source_status": "unknown",
-                    "matching_reason": f"No AI semantic match found (best similarity: {best_similarity:.3f})"
-                })
-                
-        except Exception as e:
-            print(f"DEBUG: Error in AI processing for question {i+1}: {e}")
             matches.append({
                 "question": question,
-                "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
+                "suggested_answer": f"Please review the historical data below and select the most relevant information:\n\n{historical_summary}\n\nYou can copy and paste relevant parts from the historical answers above.",
+                "confidence": 50,
+                "source_rfp": "Historical Data Review",
+                "category": "manual_review",
+                "source_status": "review_required",
+                "matching_reason": f"Found {len(relevant_groups)} relevant historical Q&A pairs for manual review"
+            })
+        else:
+            matches.append({
+                "question": question,
+                "suggested_answer": "No relevant historical data found. Please provide a custom answer based on your specific requirements.",
                 "confidence": 10,
                 "source_rfp": "None",
                 "category": "no_match",
                 "source_status": "unknown",
-                "matching_reason": f"AI processing error: {str(e)[:50]}"
+                "matching_reason": "No relevant historical data available"
             })
     
     # Final safety check
@@ -1408,12 +1520,13 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             "overall_confidence": sum(m.get('confidence', 0) for m in matches) // len(matches) if matches else 0,
             "total_questions_found": len(questions),
             "questions_answered": len(matches),
-            "debug_info": {
-                "qa_pairs_found": len(all_qa_pairs),
-                "submissions_processed": len(existing_submissions),
-                "method": "ai_semantic_matching",
-                "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
-            }
+        "debug_info": {
+            "qa_pairs_found": len(all_qa_pairs),
+            "submissions_processed": len(existing_submissions),
+            "method": "manual_review",
+            "topic_groups": {k: len(v) for k, v in topic_groups.items()},
+            "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
+        }
         }
     except Exception as e:
         print(f"DEBUG: Error in return statement: {e}")
