@@ -1181,66 +1181,75 @@ def calculate_smart_match_score(new_question: str, historical_question: str, que
     return max(0.0, min(1.0, base_score))
 
 def is_answer_relevant_to_question(question_lower: str, answer_lower: str) -> bool:
-    """Check if an answer is relevant to the question being asked - STRICT VERSION"""
+    """Check if an answer is relevant to the question being asked - ENHANCED VERSION"""
     
     # Geo Access questions should have specific geographic/network info
     if 'geo access' in question_lower:
-        return any(word in answer_lower for word in ['network', 'coverage', 'geographic', 'states', 'locations', 'providers', 'census', 'zip', 'county', 'region', 'nationwide', '50 states'])
+        return any(word in answer_lower for word in ['network', 'coverage', 'geographic', 'states', 'locations', 'providers', 'census', 'zip', 'county', 'region', 'nationwide', '50 states', 'coverage area'])
     
     # Sample login questions should have specific login/demo info
     if 'sample login' in question_lower or 'demo' in question_lower:
-        return any(word in answer_lower for word in ['login', 'demo', 'portal', 'platform', 'app', 'website', 'username', 'password', 'credentials', 'access'])
+        return any(word in answer_lower for word in ['login', 'demo', 'portal', 'platform', 'app', 'website', 'username', 'password', 'credentials', 'access', 'sample', 'test'])
     
     # Visit limit questions should have specific visit/limit info
     if 'visit limit' in question_lower:
-        return any(word in answer_lower for word in ['visit', 'limit', 'session', 'appointment', 'care', 'therapy', 'maximum', 'number', 'count'])
+        return any(word in answer_lower for word in ['visit', 'limit', 'session', 'appointment', 'care', 'therapy', 'maximum', 'number', 'count', 'sessions'])
     
     # Network provider count questions should have specific numbers or provider info
     if any(word in question_lower for word in ['how many', 'total', 'in-person', 'virtual']) and any(word in question_lower for word in ['coaches', 'therapists', 'psychiatrists']):
-        # Must have either numbers or specific provider terms, AND not be about kits/topics
+        # Must have either numbers or specific provider terms, AND not be about general services
         has_numbers = any(char.isdigit() for char in answer_lower)
-        has_provider_terms = any(word in answer_lower for word in ['coach', 'therapist', 'psychiatrist', 'provider', 'network', 'licensed', 'certified'])
-        is_not_about_kits = not any(word in answer_lower for word in ['kit', 'topic', 'adoption', 'assisted living', 'career', 'college', 'financial fitness', 'grief', 'health', 'new parent', 'retirement', 'pet care', 'tobacco cessation', 'teens', 'toddlers'])
-        return (has_numbers or has_provider_terms) and is_not_about_kits
+        has_provider_terms = any(word in answer_lower for word in ['coach', 'therapist', 'psychiatrist', 'provider', 'network', 'licensed', 'certified', 'practitioner'])
+        is_not_general = not any(word in answer_lower for word in ['offers', 'provides', 'includes', 'features', 'capabilities', 'services', 'programs'])
+        return (has_numbers or has_provider_terms) and is_not_general
     
     # Implementation questions should have specific timeline/process info
     if 'implementation' in question_lower:
-        return any(word in answer_lower for word in ['implementation', 'timeline', 'process', 'plan', 'deployment', 'launch', 'weeks', 'months', 'phases', 'steps'])
+        return any(word in answer_lower for word in ['implementation', 'timeline', 'process', 'plan', 'deployment', 'launch', 'weeks', 'months', 'phases', 'steps', 'schedule'])
     
     # Fee questions should have specific financial info
     if any(word in question_lower for word in ['fee', 'cost', 'price', 'guarantee', 'risk']):
-        return any(word in answer_lower for word in ['fee', 'cost', 'price', 'guarantee', 'risk', 'financial', 'pricing', 'dollar', '$', 'per', 'annual', 'monthly'])
+        return any(word in answer_lower for word in ['fee', 'cost', 'price', 'guarantee', 'risk', 'financial', 'pricing', 'dollar', '$', 'per', 'annual', 'monthly', 'at risk'])
     
     # Eligibility questions should have specific eligibility info
     if 'eligibility' in question_lower:
-        return any(word in answer_lower for word in ['eligibility', 'eligible', 'file', 'data', 'employee', 'member', 'enrollment', 'roster'])
+        return any(word in answer_lower for word in ['eligibility', 'eligible', 'file', 'data', 'employee', 'member', 'enrollment', 'roster', 'requirements'])
     
     # Dependent questions should have specific dependent info
     if 'dependent' in question_lower:
-        return any(word in answer_lower for word in ['dependent', 'spouse', 'child', 'family', 'eligible', 'age', 'relationship'])
+        return any(word in answer_lower for word in ['dependent', 'spouse', 'child', 'family', 'eligible', 'age', 'relationship', 'definition'])
     
     # Wait time questions should have specific timing info
     if 'wait time' in question_lower or 'appointment' in question_lower:
-        return any(word in answer_lower for word in ['time', 'hour', 'day', 'appointment', 'schedule', 'wait', 'minutes', 'hours', 'days', 'average'])
+        return any(word in answer_lower for word in ['time', 'hour', 'day', 'appointment', 'schedule', 'wait', 'minutes', 'hours', 'days', 'average', 'response'])
     
     # Fitness-for-duty questions should have specific process info
     if 'fitness for duty' in question_lower or 'fitness-for-duty' in question_lower:
-        return any(word in answer_lower for word in ['fitness', 'duty', 'evaluation', 'assessment', 'process', 'standard', 'delivery', 'time'])
+        return any(word in answer_lower for word in ['fitness', 'duty', 'evaluation', 'assessment', 'process', 'standard', 'delivery', 'time', 'workplace'])
     
     # Leave of absence questions should have specific LOA info
     if 'leave of absence' in question_lower or 'loa' in question_lower:
-        return any(word in answer_lower for word in ['leave', 'absence', 'loa', 'process', 'flow', 'manager', 'referral', 'cism'])
+        return any(word in answer_lower for word in ['leave', 'absence', 'loa', 'process', 'flow', 'manager', 'referral', 'cism', 'workplace'])
     
     # Health plan integration questions should have specific HPI info
     if 'health plan integration' in question_lower or 'hpi' in question_lower:
-        return any(word in answer_lower for word in ['health', 'plan', 'integration', 'hpi', 'carrier', 'anthem', 'medical', 'benefit'])
+        return any(word in answer_lower for word in ['health', 'plan', 'integration', 'hpi', 'carrier', 'anthem', 'medical', 'benefit', 'coordination'])
     
     # Performance guarantee questions should have specific guarantee info
     if 'performance guarantee' in question_lower:
-        return any(word in answer_lower for word in ['performance', 'guarantee', 'risk', 'fee', 'at risk', 'roi', 'offset'])
+        return any(word in answer_lower for word in ['performance', 'guarantee', 'risk', 'fee', 'at risk', 'roi', 'offset', 'financial'])
     
-    # Default: be more restrictive - only allow if answer seems relevant
-    return len(answer_lower) > 20 and not any(word in answer_lower for word in ['enhance', 'program', 'resources', 'access points', 'employees', 'dependents'])
+    # ROI questions should have specific financial/return info
+    if 'roi' in question_lower or 'return on investment' in question_lower:
+        return any(word in answer_lower for word in ['roi', 'return', 'investment', 'financial', 'savings', 'cost', 'benefit', 'offset'])
+    
+    # Account management questions should have specific team/structure info
+    if 'account management' in question_lower or 'team' in question_lower:
+        return any(word in answer_lower for word in ['account', 'manager', 'team', 'support', 'contact', 'relationship', 'success'])
+    
+    # Default: be more restrictive - only allow if answer seems relevant and not generic
+    generic_phrases = ['enhance', 'program', 'resources', 'access points', 'employees', 'dependents', 'offers', 'provides', 'includes', 'features', 'capabilities', 'services', 'programs', 'confirmed', 'yes']
+    return len(answer_lower) > 20 and not any(phrase in answer_lower for phrase in generic_phrases)
 
 def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
     """AI-powered matching using OpenAI embeddings for semantic similarity"""
@@ -1337,20 +1346,33 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                     best_similarity = similarity
                     best_match = qa_pair
             
-            # Use AI-powered threshold for semantic matching
+            # Use AI-powered threshold for semantic matching with relevance checking
             if best_match and best_similarity > 0.3:  # AI semantic threshold
-                # Clean brand names from the answer
-                cleaned_answer = clean_brand_names(best_match['answer'])
-                
-                matches.append({
-                    "question": question,
-                    "suggested_answer": cleaned_answer,
-                    "confidence": min(85, int(best_similarity * 100)),
-                    "source_rfp": best_match['source'],
-                    "category": "ai_semantic_match",
-                    "source_status": best_match['status'],
-                    "matching_reason": f"AI semantic similarity (score: {best_similarity:.3f})"
-                })
+                # Additional relevance check to ensure the answer is actually relevant
+                if is_answer_relevant_to_question(question.lower(), best_match['answer'].lower()):
+                    # Clean brand names from the answer
+                    cleaned_answer = clean_brand_names(best_match['answer'])
+                    
+                    matches.append({
+                        "question": question,
+                        "suggested_answer": cleaned_answer,
+                        "confidence": min(85, int(best_similarity * 100)),
+                        "source_rfp": best_match['source'],
+                        "category": "ai_semantic_match",
+                        "source_status": best_match['status'],
+                        "matching_reason": f"AI semantic similarity (score: {best_similarity:.3f})"
+                    })
+                else:
+                    # High similarity but not relevant - provide fallback
+                    matches.append({
+                        "question": question,
+                        "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
+                        "confidence": 10,
+                        "source_rfp": "None",
+                        "category": "no_match",
+                        "source_status": "unknown",
+                        "matching_reason": f"High similarity ({best_similarity:.3f}) but answer not relevant to question"
+                    })
             else:
                 # Provide a fallback answer
                 matches.append({
