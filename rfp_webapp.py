@@ -1373,42 +1373,42 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 if score > best_score and score > 0.1:  # More permissive threshold
                     best_match = qa_pair
                     best_score = score
-        
-        if best_match and best_score > 0.1:
-            try:
-                # Clean brand names from the answer
-                answer_text = best_match.get('answer', '')
-                if not isinstance(answer_text, str):
-                    answer_text = str(answer_text) if answer_text else ''
-                cleaned_answer = clean_brand_names(answer_text)
-                
-                # Ensure best_score is a number
-                if not isinstance(best_score, (int, float)):
-                    best_score = 0.5  # Default score
-                
-                confidence = min(80, int(best_score * 100))
-                
-                matches.append({
-                    "question": question,
-                    "suggested_answer": cleaned_answer,
-                    "confidence": confidence,
-                    "source_rfp": best_match.get('source', 'Unknown'),
-                    "category": "intelligent_match",
-                    "source_status": best_match.get('status', 'unknown'),
-                    "matching_reason": f"Intelligent match (score: {best_score:.3f})"
-                })
-            except Exception as e:
-                print(f"DEBUG: Error creating match for question {i+1}: {e}")
-                # Fallback match
-                matches.append({
-                    "question": question,
-                    "suggested_answer": "Error processing answer. Please provide a custom answer.",
-                    "confidence": 10,
-                    "source_rfp": "Error",
-                    "category": "error",
-                    "source_status": "unknown",
-                    "matching_reason": f"Error: {str(e)[:50]}"
-                })
+            
+            if best_match and best_score > 0.1:
+                try:
+                    # Clean brand names from the answer
+                    answer_text = best_match.get('answer', '')
+                    if not isinstance(answer_text, str):
+                        answer_text = str(answer_text) if answer_text else ''
+                    cleaned_answer = clean_brand_names(answer_text)
+                    
+                    # Ensure best_score is a number
+                    if not isinstance(best_score, (int, float)):
+                        best_score = 0.5  # Default score
+                    
+                    confidence = min(80, int(best_score * 100))
+                    
+                    matches.append({
+                        "question": question,
+                        "suggested_answer": cleaned_answer,
+                        "confidence": confidence,
+                        "source_rfp": best_match.get('source', 'Unknown'),
+                        "category": "intelligent_match",
+                        "source_status": best_match.get('status', 'unknown'),
+                        "matching_reason": f"Intelligent match (score: {best_score:.3f})"
+                    })
+                except Exception as e:
+                    print(f"DEBUG: Error creating match for question {i+1}: {e}")
+                    # Fallback match
+                    matches.append({
+                        "question": question,
+                        "suggested_answer": "Error processing answer. Please provide a custom answer.",
+                        "confidence": 10,
+                        "source_rfp": "Error",
+                        "category": "error",
+                        "source_status": "unknown",
+                        "matching_reason": f"Error: {str(e)[:50]}"
+                    })
         else:
             # Provide a fallback answer
             matches.append({
