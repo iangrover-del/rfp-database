@@ -1507,11 +1507,10 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             "total_questions_found": len(questions),
             "questions_answered": len(matches),
         "debug_info": {
-            "qa_pairs_found": len(all_qa_pairs),
+            "qa_pairs_found": 0,
             "submissions_processed": len(existing_submissions),
-            "method": "manual_review",
-            "topic_groups": {k: len(v) for k, v in topic_groups.items()},
-            "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
+            "method": "ai_contextual_generation",
+            "first_qa_pair": None
         }
         }
     except Exception as e:
@@ -1521,13 +1520,13 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             "overall_confidence": 0,
             "total_questions_found": len(questions) if questions else 0,
             "questions_answered": 0,
-            "debug_info": {
-                "qa_pairs_found": 0,
-                "submissions_processed": 0,
-                "method": "ai_semantic_matching",
-                "first_qa_pair": None,
-                "error": str(e)
-            }
+        "debug_info": {
+            "qa_pairs_found": 0,
+            "submissions_processed": 0,
+            "method": "ai_contextual_generation",
+            "first_qa_pair": None,
+            "error": str(e)
+        }
         }
 
 def generate_ai_answer_for_question(question: str, all_qa_pairs: List[Dict]) -> Dict[str, Any]:
