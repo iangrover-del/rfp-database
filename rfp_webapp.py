@@ -1243,7 +1243,7 @@ def is_answer_relevant_to_question(question_lower: str, answer_lower: str) -> bo
 
 def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
     """AI-powered matching that uses OpenAI to understand questions and generate relevant answers"""
-    print("DEBUG: Using AI-powered matching with semantic search")
+    print("DEBUG: Using simple matching with AI fallback")
     
     # Extract all Q&A pairs from existing submissions
     all_qa_pairs = []
@@ -1288,35 +1288,70 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
     matches = []
     
     for i, question in enumerate(questions):
-        print(f"DEBUG: AI processing question {i+1}/{len(questions)}: {question[:50]}...")
+        print(f"DEBUG: Processing question {i+1}/{len(questions)}: {question[:50]}...")
         
-        try:
-            # Use AI to generate a relevant answer based on the knowledge base
-            ai_answer = generate_ai_answer_for_question(question, all_qa_pairs)
+        # Simple word-based matching first
+        best_match = None
+        best_score = 0
+        question_lower = question.lower()
+        question_words = set(question_lower.split())
+        
+        for qa_pair in all_qa_pairs[:100]:  # Limit for speed
+            # Skip obviously irrelevant answers
+            answer_lower = qa_pair['answer'].lower()
+            if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
+                continue
             
-            if ai_answer['confidence'] > 20:  # AI found a good answer
-                matches.append({
-                    "question": question,
-                    "suggested_answer": ai_answer['answer'],
-                    "confidence": ai_answer['confidence'],
-                    "source_rfp": ai_answer['source'],
-                    "category": "ai_generated",
-                    "source_status": ai_answer['status'],
-                    "matching_reason": f"AI-generated answer (confidence: {ai_answer['confidence']}%)"
-                })
-            else:
-                # Provide a fallback answer
-                matches.append({
-                    "question": question,
-                    "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
-                    "confidence": 10,
-                    "source_rfp": "None",
-                    "category": "no_match",
-                    "source_status": "unknown",
-                    "matching_reason": f"AI could not generate relevant answer (confidence: {ai_answer['confidence']}%)"
-                })
-        except Exception as e:
-            print(f"DEBUG: Error generating AI answer for question {i+1}: {e}")
+            # Skip if answer is just a name/email
+            if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
+                continue
+            
+            # Calculate word overlap
+            hist_question_lower = qa_pair['question'].lower()
+            hist_words = set(hist_question_lower.split())
+            
+            # Look for important phrases
+            important_phrases = [
+                'geo access', 'sample login', 'visit limit', 'eligibility file', 
+                'definition of dependents', 'fitness for duty', 'leave of absence',
+                'implementation timeline', 'health plan integration', 'fees',
+                'performance guarantees', 'roi estimate', 'fees at risk',
+                'mental health coaches', 'therapists', 'psychiatrists', 'nurse practitioner',
+                'in-person', 'virtual', 'adults', 'child', 'adolescents', 'ages',
+                'wait times', 'appointment', 'account management', 'team',
+                'utilization assumption', 'financial template', 'guaranteed', 'three years',
+                'offset costs', 'carrier', 'anthem', 'health plan integration'
+            ]
+            
+            score = 0
+            for phrase in important_phrases:
+                if phrase in question_lower and phrase in hist_question_lower:
+                    score += 0.5  # Strong boost for matching important phrases
+            
+            # Add word overlap
+            common_words = question_words & hist_words
+            if common_words:
+                word_score = len(common_words) / max(len(question_words), len(hist_words))
+                score += word_score * 0.3
+            
+            if score > best_score and score > 0.1:  # Low threshold to get matches
+                best_match = qa_pair
+                best_score = score
+        
+        if best_match and best_score > 0.1:
+            # Clean brand names from the answer
+            cleaned_answer = clean_brand_names(best_match['answer'])
+            
+            matches.append({
+                "question": question,
+                "suggested_answer": cleaned_answer,
+                "confidence": min(70, int(best_score * 100)),
+                "source_rfp": best_match['source'],
+                "category": "matched",
+                "source_status": best_match['status'],
+                "matching_reason": f"word_match (score: {best_score:.3f})"
+            })
+        else:
             # Provide a fallback answer
             matches.append({
                 "question": question,
@@ -1325,7 +1360,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 "source_rfp": "None",
                 "category": "no_match",
                 "source_status": "unknown",
-                "matching_reason": f"Error generating AI answer: {str(e)[:50]}"
+                "matching_reason": f"No match found (best score: {best_score:.3f})"
             })
     
     return {
@@ -1336,7 +1371,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         "debug_info": {
             "qa_pairs_found": len(all_qa_pairs),
             "submissions_processed": len(existing_submissions),
-            "method": "ai_powered_matching",
+            "method": "simple_word_matching",
             "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
         }
     }
