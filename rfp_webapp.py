@@ -1559,9 +1559,11 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         
         try:
             # Use AI to generate answer from Modern Health knowledge base
+            print(f"DEBUG: Knowledge base length: {len(modern_health_knowledge)} characters")
             ai_answer = generate_answer_from_knowledge_base(question, modern_health_knowledge)
             
             if ai_answer and len(ai_answer) > 20:
+                print(f"DEBUG: AI knowledge system succeeded for question {i+1}")
                 matches.append({
                     "question": question,
                     "suggested_answer": ai_answer,
@@ -1572,6 +1574,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                     "matching_reason": "AI generated answer from comprehensive Modern Health knowledge base"
                 })
             else:
+                print(f"DEBUG: AI knowledge system failed for question {i+1}, using contextual generation")
                 # Fallback to contextual generation
                 generated_answer = generate_contextual_answer(question)
                 matches.append({
@@ -1654,6 +1657,11 @@ def build_modern_health_knowledge_base(existing_submissions: List) -> str:
 def generate_answer_from_knowledge_base(question: str, knowledge_base: str) -> str:
     """Use AI to generate answers from the comprehensive Modern Health knowledge base"""
     try:
+        # Check if knowledge base is too large (limit to avoid token limits)
+        if len(knowledge_base) > 8000:  # Conservative limit for gpt-3.5-turbo
+            print(f"DEBUG: Knowledge base too large ({len(knowledge_base)} chars), truncating")
+            knowledge_base = knowledge_base[:8000] + "\n\n[Knowledge base truncated for token limits]"
+        
         prompt = f"""You are an expert RFP response writer for Modern Health. You have access to a comprehensive knowledge base about Modern Health's capabilities, processes, and services.
 
 QUESTION: {question}
@@ -1672,6 +1680,8 @@ INSTRUCTIONS:
 
 Generate a professional RFP response based on the knowledge base:"""
 
+        print(f"DEBUG: Calling OpenAI API with prompt length: {len(prompt)}")
+        
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -1683,6 +1693,7 @@ Generate a professional RFP response based on the knowledge base:"""
         )
         
         answer = response.choices[0].message.content.strip()
+        print(f"DEBUG: AI generated answer: {answer[:100]}...")
         
         # Clean up the answer
         if answer.startswith("Based on the knowledge base"):
@@ -1692,6 +1703,8 @@ Generate a professional RFP response based on the knowledge base:"""
         
     except Exception as e:
         print(f"DEBUG: Error in AI knowledge generation: {e}")
+        import traceback
+        traceback.print_exc()
         return ""
 
 def find_relevant_historical_answers(question: str, knowledge_base: List[Dict]) -> List[Dict]:
