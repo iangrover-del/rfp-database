@@ -1722,7 +1722,7 @@ def find_relevant_historical_answers(question: str, knowledge_base: List[Dict]) 
                 relevance_score += 0.4
         
         # Only include if relevance score is above threshold
-        if relevance_score > 0.3:  # Increased threshold for better relevance
+        if relevance_score > 0.4:  # Increased threshold for better relevance
             relevant_answers.append({
                 'question': qa_pair['question'],
                 'answer': hist_answer,
@@ -1739,6 +1739,7 @@ def find_relevant_historical_answers(question: str, knowledge_base: List[Dict]) 
         print(f"DEBUG: Found {len(relevant_answers)} relevant answers for: {question[:50]}...")
         for i, answer in enumerate(relevant_answers[:3]):
             print(f"DEBUG: Answer {i+1} (score: {answer['relevance_score']:.2f}): {answer['question'][:50]}...")
+            print(f"DEBUG: Answer {i+1} content: {answer['answer'][:100]}...")
     else:
         print(f"DEBUG: No relevant answers found for: {question[:50]}...")
     
@@ -1803,18 +1804,26 @@ Generate a professional RFP response:"""
         answer_lower = synthesized_answer.lower()
         
         # If question is about specific topics, make sure answer addresses them
-        if 'eligibility' in question_lower and 'eligibility' not in answer_lower:
-            print(f"DEBUG: Answer doesn't address eligibility question")
-            return ""
-        elif 'dependent' in question_lower and 'dependent' not in answer_lower:
-            print(f"DEBUG: Answer doesn't address dependent question")
-            return ""
-        elif 'fitness' in question_lower and 'fitness' not in answer_lower:
-            print(f"DEBUG: Answer doesn't address fitness question")
-            return ""
-        elif 'leave' in question_lower and 'leave' not in answer_lower:
-            print(f"DEBUG: Answer doesn't address leave question")
-            return ""
+        if 'eligibility' in question_lower and 'file' in question_lower:
+            # Must mention file requirements, not just eligibility
+            if not any(word in answer_lower for word in ['file', 'format', 'data', 'employee', 'id', 'name', 'birth', 'hire']):
+                print(f"DEBUG: Answer doesn't address eligibility file requirements")
+                return ""
+        elif 'dependent' in question_lower and 'definition' in question_lower:
+            # Must mention dependent definition, not just eligibility
+            if not any(word in answer_lower for word in ['spouse', 'child', 'domestic', 'partner', 'age', '26', 'dependent']):
+                print(f"DEBUG: Answer doesn't address dependent definition")
+                return ""
+        elif 'fitness' in question_lower and 'duty' in question_lower:
+            # Must mention fitness-for-duty process, not kits or other topics
+            if not any(word in answer_lower for word in ['fitness', 'duty', 'evaluation', 'assessment', 'standard', 'process']):
+                print(f"DEBUG: Answer doesn't address fitness-for-duty")
+                return ""
+        elif 'leave' in question_lower and 'absence' in question_lower:
+            # Must mention leave processes
+            if not any(word in answer_lower for word in ['leave', 'absence', 'loa', 'process', 'manager', 'referral']):
+                print(f"DEBUG: Answer doesn't address leave processes")
+                return ""
         
         return synthesized_answer
         
