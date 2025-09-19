@@ -1657,6 +1657,9 @@ def build_modern_health_knowledge_base(existing_submissions: List) -> str:
 def generate_answer_from_knowledge_base(question: str, knowledge_base: str) -> str:
     """Use AI to generate answers from the comprehensive Modern Health knowledge base"""
     try:
+        print(f"DEBUG: Starting AI knowledge generation for question: {question[:50]}...")
+        print(f"DEBUG: Knowledge base length: {len(knowledge_base)} characters")
+        
         # Check if knowledge base is too large (limit to avoid token limits)
         if len(knowledge_base) > 8000:  # Conservative limit for gpt-3.5-turbo
             print(f"DEBUG: Knowledge base too large ({len(knowledge_base)} chars), truncating")
@@ -1681,6 +1684,7 @@ INSTRUCTIONS:
 Generate a professional RFP response based on the knowledge base:"""
 
         print(f"DEBUG: Calling OpenAI API with prompt length: {len(prompt)}")
+        print(f"DEBUG: Prompt preview: {prompt[:200]}...")
         
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -1692,17 +1696,27 @@ Generate a professional RFP response based on the knowledge base:"""
             temperature=0.3
         )
         
+        print(f"DEBUG: OpenAI API response received")
+        print(f"DEBUG: Response choices count: {len(response.choices)}")
+        
+        if not response.choices:
+            print("DEBUG: No choices in OpenAI response")
+            return ""
+        
         answer = response.choices[0].message.content.strip()
-        print(f"DEBUG: AI generated answer: {answer[:100]}...")
+        print(f"DEBUG: AI generated answer length: {len(answer)}")
+        print(f"DEBUG: AI generated answer preview: {answer[:100]}...")
         
         # Clean up the answer
         if answer.startswith("Based on the knowledge base"):
             answer = answer.split("\n", 1)[1] if "\n" in answer else answer
         
+        print(f"DEBUG: Final answer length after cleanup: {len(answer)}")
         return answer
         
     except Exception as e:
         print(f"DEBUG: Error in AI knowledge generation: {e}")
+        print(f"DEBUG: Error type: {type(e)}")
         import traceback
         traceback.print_exc()
         return ""
@@ -3826,6 +3840,13 @@ def show_process_page(client):
                 contextual_count = sum(1 for match in matches['matches'] if match.get('category') == 'ai_contextual')
                 st.write(f"AI Knowledge answers: {ai_knowledge_count}")
                 st.write(f"Contextual fallback answers: {contextual_count}")
+                
+                # Show sample matching reasons to understand why AI knowledge failed
+                if contextual_count > 0:
+                    st.write("**Sample AI Knowledge System Failures:**")
+                    sample_failures = [match for match in matches['matches'] if match.get('category') == 'ai_contextual'][:3]
+                    for i, failure in enumerate(sample_failures):
+                        st.write(f"{i+1}. {failure.get('matching_reason', 'Unknown reason')}")
             
             # Show debug info from AI agent
             if "debug_info" in matches:
