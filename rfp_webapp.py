@@ -1375,15 +1375,22 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         
         if best_match and best_score > 0.1:
             # Clean brand names from the answer
-            cleaned_answer = clean_brand_names(best_match['answer'])
+            try:
+                answer_text = best_match.get('answer', '')
+                if not isinstance(answer_text, str):
+                    answer_text = str(answer_text) if answer_text else ''
+                cleaned_answer = clean_brand_names(answer_text)
+            except Exception as e:
+                print(f"DEBUG: Error cleaning answer: {e}")
+                cleaned_answer = str(best_match.get('answer', ''))
             
             matches.append({
                 "question": question,
                 "suggested_answer": cleaned_answer,
                 "confidence": min(80, int(best_score * 100)),
-                "source_rfp": best_match['source'],
+                "source_rfp": best_match.get('source', 'Unknown'),
                 "category": "intelligent_match",
-                "source_status": best_match['status'],
+                "source_status": best_match.get('status', 'unknown'),
                 "matching_reason": f"Intelligent match (score: {best_score:.3f})"
             })
         else:
