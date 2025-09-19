@@ -1197,10 +1197,11 @@ def is_answer_relevant_to_question(question_lower: str, answer_lower: str) -> bo
     
     # Network provider count questions should have specific numbers or provider info
     if any(word in question_lower for word in ['how many', 'total', 'in-person', 'virtual']) and any(word in question_lower for word in ['coaches', 'therapists', 'psychiatrists']):
-        # Must have either numbers or specific provider terms
+        # Must have either numbers or specific provider terms, AND not be about kits/topics
         has_numbers = any(char.isdigit() for char in answer_lower)
         has_provider_terms = any(word in answer_lower for word in ['coach', 'therapist', 'psychiatrist', 'provider', 'network', 'licensed', 'certified'])
-        return has_numbers or has_provider_terms
+        is_not_about_kits = not any(word in answer_lower for word in ['kit', 'topic', 'adoption', 'assisted living', 'career', 'college', 'financial fitness', 'grief', 'health', 'new parent', 'retirement', 'pet care', 'tobacco cessation', 'teens', 'toddlers'])
+        return (has_numbers or has_provider_terms) and is_not_about_kits
     
     # Implementation questions should have specific timeline/process info
     if 'implementation' in question_lower:
@@ -1304,6 +1305,10 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             
             # Skip if answer is just a name/email
             if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
+                continue
+            
+            # Check if answer is relevant to the question type
+            if not is_answer_relevant_to_question(question_lower, answer_lower):
                 continue
             
             # Calculate word overlap
