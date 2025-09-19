@@ -1288,6 +1288,10 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
     
     matches = []
     
+    # Ensure matches is always a list
+    if not isinstance(matches, list):
+        matches = []
+    
     for i, question in enumerate(questions):
         try:
             print(f"DEBUG: Processing question {i+1}/{len(questions)}: {question[:50]}...")
@@ -1435,15 +1439,27 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             except Exception as append_error:
                 print(f"DEBUG: Error appending to matches: {append_error}")
                 # Last resort - create a minimal match
-                matches.append({
-                    "question": f"Question {i+1}",
-                    "suggested_answer": "Error processing question.",
-                    "confidence": 10,
-                    "source_rfp": "Error",
-                    "category": "error",
-                    "source_status": "unknown",
-                    "matching_reason": "Critical error"
-                })
+                try:
+                    if not isinstance(matches, list):
+                        matches = []
+                    matches.append({
+                        "question": f"Question {i+1}",
+                        "suggested_answer": "Error processing question.",
+                        "confidence": 10,
+                        "source_rfp": "Error",
+                        "category": "error",
+                        "source_status": "unknown",
+                        "matching_reason": "Critical error"
+                    })
+                except Exception as final_error:
+                    print(f"DEBUG: Final error in matches.append: {final_error}")
+                    # If all else fails, just continue
+                    pass
+    
+    # Final safety check
+    if not isinstance(matches, list):
+        print("DEBUG: matches is not a list, creating empty list")
+        matches = []
     
     try:
         return {
