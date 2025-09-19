@@ -1690,10 +1690,15 @@ def find_relevant_historical_answers(question: str, knowledge_base: List[Dict]) 
             if overlap > 0:
                 relevance_score += overlap / max(len(question_words), len(hist_words))
         
-        # 4. Boost for specific question types
+        # 4. Boost for specific question types with more precise matching
         if any(word in question_lower for word in ['how many', 'count', 'number']):
             if any(word in hist_question for word in ['how many', 'count', 'number']):
-                relevance_score += 0.3
+                # Additional check: make sure they're asking about similar things
+                if any(word in question_lower for word in ['coach', 'therapist', 'provider', 'psychiatrist']):
+                    if any(word in hist_question for word in ['coach', 'therapist', 'provider', 'psychiatrist']):
+                        relevance_score += 0.4
+                else:
+                    relevance_score += 0.3
         elif any(word in question_lower for word in ['implementation', 'timeline', 'plan']):
             if any(word in hist_question for word in ['implementation', 'timeline', 'plan']):
                 relevance_score += 0.3
@@ -1703,6 +1708,18 @@ def find_relevant_historical_answers(question: str, knowledge_base: List[Dict]) 
         elif any(word in question_lower for word in ['coach', 'therapist', 'provider']):
             if any(word in hist_question for word in ['coach', 'therapist', 'provider']):
                 relevance_score += 0.3
+        elif any(word in question_lower for word in ['eligibility', 'file', 'requirements']):
+            if any(word in hist_question for word in ['eligibility', 'file', 'requirements']):
+                relevance_score += 0.4
+        elif any(word in question_lower for word in ['dependent', 'dependents']):
+            if any(word in hist_question for word in ['dependent', 'dependents']):
+                relevance_score += 0.4
+        elif any(word in question_lower for word in ['fitness', 'duty']):
+            if any(word in hist_question for word in ['fitness', 'duty']):
+                relevance_score += 0.4
+        elif any(word in question_lower for word in ['leave', 'absence', 'loa']):
+            if any(word in hist_question for word in ['leave', 'absence', 'loa']):
+                relevance_score += 0.4
         
         # Only include if relevance score is above threshold
         if relevance_score > 0.3:  # Increased threshold for better relevance
@@ -1716,6 +1733,15 @@ def find_relevant_historical_answers(question: str, knowledge_base: List[Dict]) 
     
     # Sort by relevance score and return top 5
     relevant_answers.sort(key=lambda x: x['relevance_score'], reverse=True)
+    
+    # Debug: Show what we found
+    if relevant_answers:
+        print(f"DEBUG: Found {len(relevant_answers)} relevant answers for: {question[:50]}...")
+        for i, answer in enumerate(relevant_answers[:3]):
+            print(f"DEBUG: Answer {i+1} (score: {answer['relevance_score']:.2f}): {answer['question'][:50]}...")
+    else:
+        print(f"DEBUG: No relevant answers found for: {question[:50]}...")
+    
     return relevant_answers[:5]
 
 def synthesize_answer_from_history(question: str, relevant_answers: List[Dict]) -> str:
