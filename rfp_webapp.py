@@ -1256,7 +1256,10 @@ def generate_contextual_answer(question: str) -> str:
     
     # Dependent questions
     elif 'dependent' in question_lower:
-        return "Modern Health defines dependents as: Legal spouse or domestic partner, and children under age 26 (including natural children, stepchildren, adopted children, foster children, and children for whom the employee is legally responsible). All dependents are eligible for the same EAP services as employees."
+        if 'definition' in question_lower:
+            return "Modern Health defines dependents as: Legal spouse or domestic partner, and children under age 26 (including natural children, stepchildren, adopted children, foster children, and children for whom the employee is legally responsible). All dependents are eligible for the same EAP services as employees."
+        else:
+            return "Modern Health defines dependents as: Legal spouse or domestic partner, and children under age 26 (including natural children, stepchildren, adopted children, foster children, and children for whom the employee is legally responsible). All dependents are eligible for the same EAP services as employees."
     
     # Wait time questions
     elif any(word in question_lower for word in ['wait time', 'appointment', 'schedule']):
@@ -1713,7 +1716,13 @@ def find_relevant_historical_answers(question: str, knowledge_base: List[Dict]) 
                 relevance_score += 0.4
         elif any(word in question_lower for word in ['dependent', 'dependents']):
             if any(word in hist_question for word in ['dependent', 'dependents']):
-                relevance_score += 0.4
+                # Additional check: make sure it's about definition, not eligibility
+                if 'definition' in question_lower and 'definition' in hist_question:
+                    relevance_score += 0.5
+                elif 'definition' in question_lower and any(word in hist_question for word in ['spouse', 'child', 'domestic', 'partner', 'age']):
+                    relevance_score += 0.4
+                else:
+                    relevance_score += 0.2  # Lower score for general dependent questions
         elif any(word in question_lower for word in ['fitness', 'duty']):
             if any(word in hist_question for word in ['fitness', 'duty']):
                 relevance_score += 0.4
@@ -1810,9 +1819,13 @@ Generate a professional RFP response:"""
                 print(f"DEBUG: Answer doesn't address eligibility file requirements")
                 return ""
         elif 'dependent' in question_lower and 'definition' in question_lower:
-            # Must mention dependent definition, not just eligibility
+            # Must mention specific dependent types, not just eligibility
             if not any(word in answer_lower for word in ['spouse', 'child', 'domestic', 'partner', 'age', '26', 'dependent']):
                 print(f"DEBUG: Answer doesn't address dependent definition")
+                return ""
+            # Reject answers that are primarily about eligibility files
+            if any(word in answer_lower for word in ['eligibility file', 'file formatting', 'verification', 'system agnostic']):
+                print(f"DEBUG: Answer is about eligibility files, not dependent definition")
                 return ""
         elif 'fitness' in question_lower and 'duty' in question_lower:
             # Must mention fitness-for-duty process, not kits or other topics
