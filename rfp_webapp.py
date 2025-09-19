@@ -1660,6 +1660,18 @@ def generate_answer_from_knowledge_base(question: str, knowledge_base: str) -> s
         print(f"DEBUG: Starting AI knowledge generation for question: {question[:50]}...")
         print(f"DEBUG: Knowledge base length: {len(knowledge_base)} characters")
         
+        # Test API key first with a simple call
+        try:
+            test_response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "Test"}],
+                max_tokens=10
+            )
+            print(f"DEBUG: API key test successful")
+        except Exception as api_error:
+            print(f"DEBUG: API key test failed: {api_error}")
+            return ""
+        
         # Check if knowledge base is too large (limit to avoid token limits)
         if len(knowledge_base) > 8000:  # Conservative limit for gpt-3.5-turbo
             print(f"DEBUG: Knowledge base too large ({len(knowledge_base)} chars), truncating")
@@ -3847,6 +3859,10 @@ def show_process_page(client):
                     sample_failures = [match for match in matches['matches'] if match.get('category') == 'ai_contextual'][:3]
                     for i, failure in enumerate(sample_failures):
                         st.write(f"{i+1}. {failure.get('matching_reason', 'Unknown reason')}")
+                    
+                    # Show API key test result
+                    st.write("**API Key Test:**")
+                    st.write("Check server logs for 'API key test successful' or 'API key test failed' messages")
             
             # Show debug info from AI agent
             if "debug_info" in matches:
