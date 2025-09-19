@@ -1409,28 +1409,28 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                     "source_status": "unknown",
                     "matching_reason": f"Error: {str(e)[:50]}"
                 })
-            else:
-                # Provide a fallback answer
-                matches.append({
-                    "question": question,
-                    "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
-                    "confidence": 10,
-                    "source_rfp": "None",
-                    "category": "no_match",
-                    "source_status": "unknown",
-                    "matching_reason": f"No match found (best score: {best_score:.3f})"
-                })
-        except Exception as e:
-            print(f"DEBUG: Error processing question {i+1}: {e}")
+        else:
+            # Provide a fallback answer
             matches.append({
                 "question": question,
-                "suggested_answer": "Error processing question. Please provide a custom answer.",
+                "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
                 "confidence": 10,
-                "source_rfp": "Error",
-                "category": "error",
+                "source_rfp": "None",
+                "category": "no_match",
                 "source_status": "unknown",
-                "matching_reason": f"Processing error: {str(e)[:50]}"
+                "matching_reason": f"No match found (best score: {best_score:.3f})"
             })
+    except Exception as e:
+        print(f"DEBUG: Error processing question {i+1}: {e}")
+        matches.append({
+            "question": question,
+            "suggested_answer": "Error processing question. Please provide a custom answer.",
+            "confidence": 10,
+            "source_rfp": "Error",
+            "category": "error",
+            "source_status": "unknown",
+            "matching_reason": f"Processing error: {str(e)[:50]}"
+        })
     
     return {
         "matches": matches,
