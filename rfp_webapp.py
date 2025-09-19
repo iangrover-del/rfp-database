@@ -1733,6 +1733,18 @@ Generate a professional RFP response based on the knowledge base:"""
         traceback.print_exc()
         return ""
 
+def test_openai_api_key() -> str:
+    """Test if OpenAI API key is working and return status"""
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "Test"}],
+            max_tokens=10
+        )
+        return "✅ API Key Working"
+    except Exception as e:
+        return f"❌ API Key Failed: {str(e)[:100]}"
+
 def find_relevant_historical_answers(question: str, knowledge_base: List[Dict]) -> List[Dict]:
     """Find relevant historical answers using semantic similarity and keyword matching"""
     relevant_answers = []
@@ -3862,7 +3874,8 @@ def show_process_page(client):
                     
                     # Show API key test result
                     st.write("**API Key Test:**")
-                    st.write("Check server logs for 'API key test successful' or 'API key test failed' messages")
+                    api_status = test_openai_api_key()
+                    st.write(api_status)
             
             # Show debug info from AI agent
             if "debug_info" in matches:
