@@ -1243,8 +1243,8 @@ def is_answer_relevant_to_question(question_lower: str, answer_lower: str) -> bo
     return len(answer_lower) > 20 and not any(word in answer_lower for word in ['enhance', 'program', 'resources', 'access points', 'employees', 'dependents'])
 
 def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
-    """AI-powered matching that uses OpenAI to understand questions and generate relevant answers"""
-    print("DEBUG: Using intelligent matching without API calls")
+    """AI-powered matching using OpenAI embeddings for semantic similarity"""
+    print("DEBUG: Using AI-powered semantic matching with embeddings")
     
     # Extract all Q&A pairs from existing submissions
     all_qa_pairs = []
@@ -1293,16 +1293,29 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         matches = []
     
     for i, question in enumerate(questions):
+        print(f"DEBUG: AI processing question {i+1}/{len(questions)}: {question[:50]}...")
+        
         try:
-            print(f"DEBUG: Processing question {i+1}/{len(questions)}: {question[:50]}...")
+            # Get embedding for the current question
+            question_embedding = get_question_embedding(question)
+            if not question_embedding:
+                print(f"DEBUG: Could not get embedding for question {i+1}")
+                matches.append({
+                    "question": question,
+                    "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
+                    "confidence": 10,
+                    "source_rfp": "None",
+                    "category": "no_match",
+                    "source_status": "unknown",
+                    "matching_reason": "Could not get question embedding"
+                })
+                continue
             
             best_match = None
-            best_score = 0
-            question_lower = question.lower() if question else ""
-            question_words = set(question_lower.split()) if question_lower else set()
+            best_similarity = 0
             
-            # Simple but intelligent matching
-            for qa_pair in all_qa_pairs[:150]:  # Check more pairs for better results
+            # Find the most semantically similar Q&A pair using AI embeddings
+            for qa_pair in all_qa_pairs[:200]:  # Check more pairs for better results
                 # Skip obviously irrelevant answers
                 answer_lower = qa_pair['answer'].lower()
                 if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
@@ -1312,107 +1325,32 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
                     continue
                 
-                # Calculate intelligent matching score
-                hist_question_lower = qa_pair['question'].lower()
-                hist_words = set(hist_question_lower.split())
+                # Get embedding for the historical question
+                hist_embedding = get_question_embedding(qa_pair['question'])
+                if not hist_embedding:
+                    continue
                 
-                score = 0
+                # Calculate cosine similarity using AI embeddings
+                similarity = calculate_cosine_similarity(question_embedding, hist_embedding)
                 
-                # 1. Flexible phrase matching (highest priority)
-                important_phrases = [
-                    'geo access', 'sample login', 'visit limit', 'eligibility file', 
-                    'definition of dependents', 'fitness for duty', 'leave of absence',
-                    'implementation timeline', 'health plan integration', 'fees',
-                    'performance guarantees', 'roi estimate', 'fees at risk',
-                    'mental health coaches', 'therapists', 'psychiatrists', 'nurse practitioner',
-                    'in-person', 'virtual', 'adults', 'child', 'adolescents', 'ages',
-                    'wait times', 'appointment', 'account management', 'team',
-                    'utilization assumption', 'financial template', 'guaranteed', 'three years',
-                    'offset costs', 'carrier', 'anthem', 'health plan integration'
-                ]
-                
-                # Check for phrase matches with variations
-                for phrase in important_phrases:
-                    if phrase in question_lower:
-                        # Look for variations in historical question
-                        phrase_words = phrase.split()
-                        if len(phrase_words) >= 2:
-                            # Check if most words from phrase appear in historical question
-                            word_matches = sum(1 for word in phrase_words if word in hist_question_lower)
-                            if word_matches >= len(phrase_words) * 0.7:  # 70% of words match
-                                score += 0.6  # High boost for phrase variations
-                        elif phrase in hist_question_lower:
-                            score += 0.8  # Exact single word match
-                
-                # 2. Word overlap with context awareness
-                common_words = question_words & hist_words
-                if common_words:
-                    # Remove common stop words for better matching
-                    stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'please', 'provide', 'your', 'you', 'we', 'our', 'us', 'this', 'that', 'these', 'those'}
-                    meaningful_common = common_words - stop_words
-                    if meaningful_common:
-                        word_score = len(meaningful_common) / max(len(question_words - stop_words), len(hist_words - stop_words))
-                        score += word_score * 0.5  # Increased weight
-                
-                # 3. Boost for question type matches
-                if 'how many' in question_lower and 'how many' in hist_question_lower:
-                    score += 0.4
-                if 'definition' in question_lower and 'definition' in hist_question_lower:
-                    score += 0.4
-                if 'timeline' in question_lower and 'timeline' in hist_question_lower:
-                    score += 0.4
-                if 'complete' in question_lower and 'complete' in hist_question_lower:
-                    score += 0.3
-                if 'provide' in question_lower and 'provide' in hist_question_lower:
-                    score += 0.2
-                if 'outline' in question_lower and 'outline' in hist_question_lower:
-                    score += 0.3
-                if 'discuss' in question_lower and 'discuss' in hist_question_lower:
-                    score += 0.3
-                
-                # 4. Penalty for obviously irrelevant content
-                if any(word in answer_lower for word in ['kit', 'topic', 'adoption', 'assisted living', 'career', 'college']):
-                    score -= 0.5
-                
-                if score > best_score and score > 0.1:  # More permissive threshold
+                if similarity > best_similarity:
+                    best_similarity = similarity
                     best_match = qa_pair
-                    best_score = score
             
-            if best_match and best_score > 0.1:
-                try:
-                    # Clean brand names from the answer
-                    answer_text = best_match.get('answer', '')
-                    if not isinstance(answer_text, str):
-                        answer_text = str(answer_text) if answer_text else ''
-                    cleaned_answer = clean_brand_names(answer_text)
-                    
-                    # Ensure best_score is a number
-                    if not isinstance(best_score, (int, float)):
-                        best_score = 0.5  # Default score
-                    
-                    confidence = min(80, int(best_score * 100))
-                    
-                    matches.append({
-                        "question": question,
-                        "suggested_answer": cleaned_answer,
-                        "confidence": confidence,
-                        "source_rfp": best_match.get('source', 'Unknown'),
-                        "category": "intelligent_match",
-                        "source_status": best_match.get('status', 'unknown'),
-                        "matching_reason": f"Intelligent match (score: {best_score:.3f})"
-                    })
-                except Exception as e:
-                    print(f"DEBUG: Error creating match for question {i+1}: {e}")
-                    # Fallback match
-                    matches.append({
-                        "question": question,
-                        "suggested_answer": "Error processing answer. Please provide a custom answer.",
-                        "confidence": 10,
-                        "source_rfp": "Error",
-                        "category": "error",
-                        "source_status": "unknown",
-                        "matching_reason": f"Error: {str(e)[:50]}"
-                    })
+            # Use AI-powered threshold for semantic matching
+            if best_match and best_similarity > 0.3:  # AI semantic threshold
+                # Clean brand names from the answer
+                cleaned_answer = clean_brand_names(best_match['answer'])
+                
+                matches.append({
+                    "question": question,
+                    "suggested_answer": cleaned_answer,
+                    "confidence": min(85, int(best_similarity * 100)),
+                    "source_rfp": best_match['source'],
+                    "category": "ai_semantic_match",
+                    "source_status": best_match['status'],
+                    "matching_reason": f"AI semantic similarity (score: {best_similarity:.3f})"
+                })
             else:
                 # Provide a fallback answer
                 matches.append({
@@ -1422,39 +1360,20 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                     "source_rfp": "None",
                     "category": "no_match",
                     "source_status": "unknown",
-                    "matching_reason": f"No match found (best score: {best_score:.3f})"
+                    "matching_reason": f"No AI semantic match found (best similarity: {best_similarity:.3f})"
                 })
+                
         except Exception as e:
-            print(f"DEBUG: Error processing question {i+1}: {e}")
-            try:
-                matches.append({
-                    "question": question if question else f"Question {i+1}",
-                    "suggested_answer": "Error processing question. Please provide a custom answer.",
-                    "confidence": 10,
-                    "source_rfp": "Error",
-                    "category": "error",
-                    "source_status": "unknown",
-                    "matching_reason": f"Processing error: {str(e)[:50]}"
-                })
-            except Exception as append_error:
-                print(f"DEBUG: Error appending to matches: {append_error}")
-                # Last resort - create a minimal match
-                try:
-                    if not isinstance(matches, list):
-                        matches = []
-                    matches.append({
-                        "question": f"Question {i+1}",
-                        "suggested_answer": "Error processing question.",
-                        "confidence": 10,
-                        "source_rfp": "Error",
-                        "category": "error",
-                        "source_status": "unknown",
-                        "matching_reason": "Critical error"
-                    })
-                except Exception as final_error:
-                    print(f"DEBUG: Final error in matches.append: {final_error}")
-                    # If all else fails, just continue
-                    pass
+            print(f"DEBUG: Error in AI processing for question {i+1}: {e}")
+            matches.append({
+                "question": question,
+                "suggested_answer": "No specific answer found in historical RFPs. Please provide a custom answer based on your specific requirements.",
+                "confidence": 10,
+                "source_rfp": "None",
+                "category": "no_match",
+                "source_status": "unknown",
+                "matching_reason": f"AI processing error: {str(e)[:50]}"
+            })
     
     # Final safety check
     if not isinstance(matches, list):
@@ -1470,7 +1389,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             "debug_info": {
                 "qa_pairs_found": len(all_qa_pairs),
                 "submissions_processed": len(existing_submissions),
-                "method": "intelligent_matching",
+                "method": "ai_semantic_matching",
                 "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
             }
         }
@@ -1484,7 +1403,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             "debug_info": {
                 "qa_pairs_found": 0,
                 "submissions_processed": 0,
-                "method": "intelligent_matching",
+                "method": "ai_semantic_matching",
                 "first_qa_pair": None,
                 "error": str(e)
             }
