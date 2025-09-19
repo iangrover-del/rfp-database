@@ -1584,7 +1584,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                     "source_rfp": "AI Generated",
                     "category": "ai_contextual",
                     "source_status": "generated",
-                    "matching_reason": "AI knowledge system failed, using contextual generation"
+                    "matching_reason": f"AI knowledge system failed (answer length: {len(ai_answer) if ai_answer else 0}), using contextual generation"
                 })
                 
         except Exception as e:
@@ -3810,8 +3810,22 @@ def show_process_page(client):
             print(f"DEBUG: Questions count: {len(questions)}")
             print(f"DEBUG: Existing submissions count: {len(existing_submissions)}")
             # Use simple matching with low threshold to get more matches
+            st.write("🔍 **Debug: About to call AI knowledge system**")
             matches = find_matching_answers_simple(questions, existing_submissions)
             print("DEBUG: find_matching_answers_simple completed")
+            
+            # Show debug info about AI knowledge system
+            if matches and 'debug_info' in matches:
+                st.write(f"🔍 **Debug: AI Knowledge System Results**")
+                st.write(f"Method: {matches['debug_info']['method']}")
+                st.write(f"Knowledge base entries: {matches['debug_info']['qa_pairs_found']}")
+                st.write(f"Submissions processed: {matches['debug_info']['submissions_processed']}")
+                
+                # Count how many answers came from AI knowledge vs contextual
+                ai_knowledge_count = sum(1 for match in matches['matches'] if match.get('category') == 'ai_knowledge')
+                contextual_count = sum(1 for match in matches['matches'] if match.get('category') == 'ai_contextual')
+                st.write(f"AI Knowledge answers: {ai_knowledge_count}")
+                st.write(f"Contextual fallback answers: {contextual_count}")
             
             # Show debug info from AI agent
             if "debug_info" in matches:
