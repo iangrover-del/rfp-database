@@ -1338,8 +1338,8 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                         phrase_words = phrase.split()
                         if len(phrase_words) >= 2:
                             # Check if most words from phrase appear in historical question
-                            matches = sum(1 for word in phrase_words if word in hist_question_lower)
-                            if matches >= len(phrase_words) * 0.7:  # 70% of words match
+                            word_matches = sum(1 for word in phrase_words if word in hist_question_lower)
+                            if word_matches >= len(phrase_words) * 0.7:  # 70% of words match
                                 score += 0.6  # High boost for phrase variations
                         elif phrase in hist_question_lower:
                             score += 0.8  # Exact single word match
