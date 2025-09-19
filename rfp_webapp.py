@@ -1484,89 +1484,296 @@ def is_answer_relevant_to_question(question_lower: str, answer_lower: str) -> bo
     return len(answer_lower) > 20 and not any(phrase in answer_lower for phrase in generic_phrases)
 
 def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
-    """Generate AI answers from scratch based on question context, not historical matching"""
-    print("DEBUG: Generating AI answers from scratch based on question context")
+    """AI Learning System: Use historical RFP data to generate intelligent answers"""
+    print("DEBUG: Building AI learning system from historical RFP data")
     
     matches = []
     
-    # Ensure matches is always a list
-    if not isinstance(matches, list):
-        matches = []
+    # Check if we have historical data to learn from
+    if not existing_submissions:
+        print("DEBUG: No historical submissions found, using contextual generation")
+        # Fallback to contextual generation if no historical data
+        for i, question in enumerate(questions):
+            generated_answer = generate_contextual_answer(question)
+            matches.append({
+                "question": question,
+                "suggested_answer": generated_answer or "Please provide a custom answer based on your specific requirements.",
+                "confidence": 50,
+                "source_rfp": "AI Generated",
+                "category": "ai_contextual",
+                "source_status": "generated",
+                "matching_reason": "No historical data available, using AI contextual generation"
+            })
+        
+        return {
+            "matches": matches,
+            "overall_confidence": 50,
+            "total_questions_found": len(questions),
+            "questions_answered": len(matches),
+            "debug_info": {
+                "qa_pairs_found": 0,
+                "submissions_processed": 0,
+                "method": "ai_contextual_fallback",
+                "first_qa_pair": None
+            }
+        }
     
-    # Generate AI answers from scratch for each question
+    # Build knowledge base from historical submissions
+    knowledge_base = build_knowledge_base(existing_submissions)
+    print(f"DEBUG: Built knowledge base with {len(knowledge_base)} Q&A pairs")
+    
+    if not knowledge_base:
+        print("DEBUG: Knowledge base is empty, using contextual generation")
+        # Fallback to contextual generation if knowledge base is empty
+        for i, question in enumerate(questions):
+            generated_answer = generate_contextual_answer(question)
+            matches.append({
+                "question": question,
+                "suggested_answer": generated_answer or "Please provide a custom answer based on your specific requirements.",
+                "confidence": 50,
+                "source_rfp": "AI Generated",
+                "category": "ai_contextual",
+                "source_status": "generated",
+                "matching_reason": "Empty knowledge base, using AI contextual generation"
+            })
+        
+        return {
+            "matches": matches,
+            "overall_confidence": 50,
+            "total_questions_found": len(questions),
+            "questions_answered": len(matches),
+            "debug_info": {
+                "qa_pairs_found": 0,
+                "submissions_processed": len(existing_submissions),
+                "method": "ai_contextual_fallback",
+                "first_qa_pair": None
+            }
+        }
+    
+    # Use AI learning system to generate answers from historical data
     for i, question in enumerate(questions):
-        print(f"DEBUG: Generating AI answer for question {i+1}/{len(questions)}: {question[:50]}...")
+        print(f"DEBUG: Learning from historical data for question {i+1}/{len(questions)}: {question[:50]}...")
         
         try:
-            # Use AI to generate a contextual answer based on the question type
-            generated_answer = generate_contextual_answer(question)
+            # Find relevant historical answers using semantic search
+            relevant_answers = find_relevant_historical_answers(question, knowledge_base)
             
-            if generated_answer and len(generated_answer) > 20:
+            if relevant_answers:
+                # Use AI to synthesize answer from historical data
+                synthesized_answer = synthesize_answer_from_history(question, relevant_answers)
+                
+                if synthesized_answer and len(synthesized_answer) > 20:
+                    matches.append({
+                        "question": question,
+                        "suggested_answer": synthesized_answer,
+                        "confidence": 85,  # High confidence for AI-synthesized answers from historical data
+                        "source_rfp": f"AI Learning from {len(relevant_answers)} historical sources",
+                        "category": "ai_learning",
+                        "source_status": "learned",
+                        "matching_reason": f"AI synthesized answer from {len(relevant_answers)} relevant historical responses"
+                    })
+                else:
+                    # Fallback to contextual generation
+                    generated_answer = generate_contextual_answer(question)
+                    matches.append({
+                        "question": question,
+                        "suggested_answer": generated_answer or "Please provide a custom answer based on your specific requirements.",
+                        "confidence": 60,
+                        "source_rfp": "AI Generated",
+                        "category": "ai_contextual",
+                        "source_status": "generated",
+                        "matching_reason": "AI synthesis failed, using contextual generation"
+                    })
+            else:
+                # No relevant historical data found, use contextual generation
+                generated_answer = generate_contextual_answer(question)
                 matches.append({
                     "question": question,
-                    "suggested_answer": generated_answer,
-                    "confidence": 70,  # High confidence for AI-generated contextual answers
+                    "suggested_answer": generated_answer or "Please provide a custom answer based on your specific requirements.",
+                    "confidence": 60,
                     "source_rfp": "AI Generated",
                     "category": "ai_contextual",
                     "source_status": "generated",
-                    "matching_reason": "AI-generated answer based on question context and industry knowledge"
-                })
-            else:
-                matches.append({
-                    "question": question,
-                    "suggested_answer": "Please provide a custom answer based on your specific requirements and capabilities.",
-                    "confidence": 10,
-                    "source_rfp": "None",
-                    "category": "no_match",
-                    "source_status": "unknown",
-                    "matching_reason": "AI could not generate contextual answer"
+                    "matching_reason": "No relevant historical data found, using contextual generation"
                 })
                 
         except Exception as e:
-            print(f"DEBUG: Error in AI generation for question {i+1}: {e}")
+            print(f"DEBUG: Error in AI learning for question {i+1}: {e}")
+            # Fallback to contextual generation
+            generated_answer = generate_contextual_answer(question)
             matches.append({
                 "question": question,
-                "suggested_answer": "Please provide a custom answer based on your specific requirements and capabilities.",
-                "confidence": 10,
-                "source_rfp": "None",
-                "category": "no_match",
-                "source_status": "unknown",
-                "matching_reason": f"AI generation error: {str(e)[:50]}"
+                "suggested_answer": generated_answer or "Please provide a custom answer based on your specific requirements.",
+                "confidence": 50,
+                "source_rfp": "AI Generated",
+                "category": "ai_contextual",
+                "source_status": "generated",
+                "matching_reason": f"AI learning error: {str(e)[:50]}"
             })
     
-    # Final safety check
-    if not isinstance(matches, list):
-        print("DEBUG: matches is not a list, creating empty list")
-        matches = []
+    # Calculate overall confidence
+    overall_confidence = sum(m.get('confidence', 0) for m in matches) // len(matches) if matches else 0
+    
+    return {
+        "matches": matches,
+        "overall_confidence": overall_confidence,
+        "total_questions_found": len(questions),
+        "questions_answered": len(matches),
+        "debug_info": {
+            "qa_pairs_found": len(knowledge_base),
+            "submissions_processed": len(existing_submissions),
+            "method": "ai_learning_system",
+            "first_qa_pair": knowledge_base[0] if knowledge_base else None
+        }
+    }
+
+def find_relevant_historical_answers(question: str, knowledge_base: List[Dict]) -> List[Dict]:
+    """Find relevant historical answers using semantic similarity and keyword matching"""
+    relevant_answers = []
+    question_lower = question.lower()
+    
+    # Extract key terms from the question
+    question_words = set(question_lower.split())
+    question_words.discard('the')
+    question_words.discard('a')
+    question_words.discard('an')
+    question_words.discard('and')
+    question_words.discard('or')
+    question_words.discard('but')
+    question_words.discard('in')
+    question_words.discard('on')
+    question_words.discard('at')
+    question_words.discard('to')
+    question_words.discard('for')
+    question_words.discard('of')
+    question_words.discard('with')
+    question_words.discard('by')
+    
+    for qa_pair in knowledge_base:
+        if not isinstance(qa_pair, dict) or 'question' not in qa_pair or 'answer' not in qa_pair:
+            continue
+            
+        hist_question = qa_pair['question'].lower()
+        hist_answer = qa_pair['answer']
+        
+        if not hist_answer or len(hist_answer.strip()) < 10:
+            continue
+        
+        # Calculate relevance score
+        relevance_score = 0
+        
+        # 1. Exact question match (highest priority)
+        if question_lower == hist_question:
+            relevance_score += 1.0
+        # 2. Question contains most of the historical question
+        elif len(question_words.intersection(set(hist_question.split()))) / len(set(hist_question.split())) > 0.7:
+            relevance_score += 0.8
+        # 3. Keyword overlap
+        else:
+            hist_words = set(hist_question.split())
+            hist_words.discard('the')
+            hist_words.discard('a')
+            hist_words.discard('an')
+            hist_words.discard('and')
+            hist_words.discard('or')
+            hist_words.discard('but')
+            hist_words.discard('in')
+            hist_words.discard('on')
+            hist_words.discard('at')
+            hist_words.discard('to')
+            hist_words.discard('for')
+            hist_words.discard('of')
+            hist_words.discard('with')
+            hist_words.discard('by')
+            
+            overlap = len(question_words.intersection(hist_words))
+            if overlap > 0:
+                relevance_score += overlap / max(len(question_words), len(hist_words))
+        
+        # 4. Boost for specific question types
+        if any(word in question_lower for word in ['how many', 'count', 'number']):
+            if any(word in hist_question for word in ['how many', 'count', 'number']):
+                relevance_score += 0.3
+        elif any(word in question_lower for word in ['implementation', 'timeline', 'plan']):
+            if any(word in hist_question for word in ['implementation', 'timeline', 'plan']):
+                relevance_score += 0.3
+        elif any(word in question_lower for word in ['fee', 'cost', 'price', 'guarantee']):
+            if any(word in hist_question for word in ['fee', 'cost', 'price', 'guarantee']):
+                relevance_score += 0.3
+        elif any(word in question_lower for word in ['coach', 'therapist', 'provider']):
+            if any(word in hist_question for word in ['coach', 'therapist', 'provider']):
+                relevance_score += 0.3
+        
+        # Only include if relevance score is above threshold
+        if relevance_score > 0.2:
+            relevant_answers.append({
+                'question': qa_pair['question'],
+                'answer': hist_answer,
+                'source': qa_pair.get('source', 'Unknown'),
+                'status': qa_pair.get('status', 'unknown'),
+                'relevance_score': relevance_score
+            })
+    
+    # Sort by relevance score and return top 5
+    relevant_answers.sort(key=lambda x: x['relevance_score'], reverse=True)
+    return relevant_answers[:5]
+
+def synthesize_answer_from_history(question: str, relevant_answers: List[Dict]) -> str:
+    """Use AI to synthesize a comprehensive answer from relevant historical data"""
+    if not relevant_answers:
+        return ""
     
     try:
-        return {
-            "matches": matches,
-            "overall_confidence": sum(m.get('confidence', 0) for m in matches) // len(matches) if matches else 0,
-            "total_questions_found": len(questions),
-            "questions_answered": len(matches),
-        "debug_info": {
-            "qa_pairs_found": 0,
-            "submissions_processed": len(existing_submissions),
-            "method": "ai_contextual_generation",
-            "first_qa_pair": None
-        }
-        }
+        # Prepare context from historical answers
+        context = "Historical RFP Answers:\n\n"
+        for i, answer in enumerate(relevant_answers):
+            context += f"Source {i+1} ({answer['source']}):\n"
+            context += f"Question: {answer['question']}\n"
+            context += f"Answer: {answer['answer']}\n\n"
+        
+        # Create prompt for AI synthesis
+        prompt = f"""You are an expert RFP response writer. Based on the historical RFP answers below, create a comprehensive, professional answer for the new question.
+
+NEW QUESTION: {question}
+
+{context}
+
+INSTRUCTIONS:
+1. Synthesize the best information from the historical answers
+2. Create a comprehensive, professional response
+3. Use specific details and numbers when available
+4. Maintain consistency with Modern Health's capabilities
+5. Do NOT mention other company names or brands
+6. Focus on the most relevant and accurate information
+7. If historical answers conflict, choose the most recent or most detailed one
+
+Generate a professional RFP response:"""
+
+        # Call OpenAI API
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are an expert RFP response writer specializing in mental health and EAP services."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=500,
+            temperature=0.3
+        )
+        
+        synthesized_answer = response.choices[0].message.content.strip()
+        
+        # Clean up the answer
+        if synthesized_answer.startswith("Based on the historical data"):
+            synthesized_answer = synthesized_answer.split("\n", 1)[1] if "\n" in synthesized_answer else synthesized_answer
+        
+        return synthesized_answer
+        
     except Exception as e:
-        print(f"DEBUG: Error in return statement: {e}")
-        return {
-            "matches": [],
-            "overall_confidence": 0,
-            "total_questions_found": len(questions) if questions else 0,
-            "questions_answered": 0,
-        "debug_info": {
-            "qa_pairs_found": 0,
-            "submissions_processed": 0,
-            "method": "ai_contextual_generation",
-            "first_qa_pair": None,
-            "error": str(e)
-        }
-        }
+        print(f"DEBUG: Error in AI synthesis: {e}")
+        # Fallback: return the best historical answer
+        if relevant_answers:
+            return relevant_answers[0]['answer']
+        return ""
 
 def generate_ai_answer_for_question(question: str, all_qa_pairs: List[Dict]) -> Dict[str, Any]:
     """Use AI to generate a relevant answer for a question based on the knowledge base"""
