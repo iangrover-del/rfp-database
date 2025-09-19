@@ -1422,28 +1422,57 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 })
         except Exception as e:
             print(f"DEBUG: Error processing question {i+1}: {e}")
-            matches.append({
-                "question": question,
-                "suggested_answer": "Error processing question. Please provide a custom answer.",
-                "confidence": 10,
-                "source_rfp": "Error",
-                "category": "error",
-                "source_status": "unknown",
-                "matching_reason": f"Processing error: {str(e)[:50]}"
-            })
+            try:
+                matches.append({
+                    "question": question if question else f"Question {i+1}",
+                    "suggested_answer": "Error processing question. Please provide a custom answer.",
+                    "confidence": 10,
+                    "source_rfp": "Error",
+                    "category": "error",
+                    "source_status": "unknown",
+                    "matching_reason": f"Processing error: {str(e)[:50]}"
+                })
+            except Exception as append_error:
+                print(f"DEBUG: Error appending to matches: {append_error}")
+                # Last resort - create a minimal match
+                matches.append({
+                    "question": f"Question {i+1}",
+                    "suggested_answer": "Error processing question.",
+                    "confidence": 10,
+                    "source_rfp": "Error",
+                    "category": "error",
+                    "source_status": "unknown",
+                    "matching_reason": "Critical error"
+                })
     
-    return {
-        "matches": matches,
-        "overall_confidence": sum(m['confidence'] for m in matches) // len(matches) if matches else 0,
-        "total_questions_found": len(questions),
-        "questions_answered": len(matches),
-        "debug_info": {
-            "qa_pairs_found": len(all_qa_pairs),
-            "submissions_processed": len(existing_submissions),
-            "method": "intelligent_matching",
-            "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
+    try:
+        return {
+            "matches": matches,
+            "overall_confidence": sum(m.get('confidence', 0) for m in matches) // len(matches) if matches else 0,
+            "total_questions_found": len(questions),
+            "questions_answered": len(matches),
+            "debug_info": {
+                "qa_pairs_found": len(all_qa_pairs),
+                "submissions_processed": len(existing_submissions),
+                "method": "intelligent_matching",
+                "first_qa_pair": all_qa_pairs[0] if all_qa_pairs else None
+            }
         }
-    }
+    except Exception as e:
+        print(f"DEBUG: Error in return statement: {e}")
+        return {
+            "matches": [],
+            "overall_confidence": 0,
+            "total_questions_found": len(questions) if questions else 0,
+            "questions_answered": 0,
+            "debug_info": {
+                "qa_pairs_found": 0,
+                "submissions_processed": 0,
+                "method": "intelligent_matching",
+                "first_qa_pair": None,
+                "error": str(e)
+            }
+        }
 
 def generate_ai_answer_for_question(question: str, all_qa_pairs: List[Dict]) -> Dict[str, Any]:
     """Use AI to generate a relevant answer for a question based on the knowledge base"""
