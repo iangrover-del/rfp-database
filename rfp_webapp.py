@@ -1662,12 +1662,23 @@ def generate_answer_from_knowledge_base(question: str, knowledge_base: str) -> s
         
         # Test API key first with a simple call
         try:
-            test_response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": "Test"}],
-                max_tokens=10
-            )
-            print(f"DEBUG: API key test successful")
+            # Try new API format first (openai>=1.0.0)
+            try:
+                client = openai.OpenAI()
+                test_response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": "Test"}],
+                    max_tokens=10
+                )
+                print(f"DEBUG: API key test successful (New API)")
+            except Exception as new_api_error:
+                # Fallback to old API format (openai<1.0.0)
+                test_response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": "Test"}],
+                    max_tokens=10
+                )
+                print(f"DEBUG: API key test successful (Old API)")
         except Exception as api_error:
             print(f"DEBUG: API key test failed: {api_error}")
             return ""
@@ -1698,15 +1709,29 @@ Generate a professional RFP response based on the knowledge base:"""
         print(f"DEBUG: Calling OpenAI API with prompt length: {len(prompt)}")
         print(f"DEBUG: Prompt preview: {prompt[:200]}...")
         
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are an expert RFP response writer specializing in mental health and EAP services for Modern Health. Always provide accurate, specific answers based on the knowledge base provided."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=500,
-            temperature=0.3
-        )
+        # Try new API format first (openai>=1.0.0)
+        try:
+            client = openai.OpenAI()
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are an expert RFP response writer specializing in mental health and EAP services for Modern Health. Always provide accurate, specific answers based on the knowledge base provided."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500,
+                temperature=0.3
+            )
+        except Exception as new_api_error:
+            # Fallback to old API format (openai<1.0.0)
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are an expert RFP response writer specializing in mental health and EAP services for Modern Health. Always provide accurate, specific answers based on the knowledge base provided."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500,
+                temperature=0.3
+            )
         
         print(f"DEBUG: OpenAI API response received")
         print(f"DEBUG: Response choices count: {len(response.choices)}")
@@ -1736,12 +1761,23 @@ Generate a professional RFP response based on the knowledge base:"""
 def test_openai_api_key() -> str:
     """Test if OpenAI API key is working and return status"""
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Test"}],
-            max_tokens=10
-        )
-        return "✅ API Key Working"
+        # Try new API format first (openai>=1.0.0)
+        try:
+            client = openai.OpenAI()
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "Test"}],
+                max_tokens=10
+            )
+            return "✅ API Key Working (New API)"
+        except Exception as new_api_error:
+            # Fallback to old API format (openai<1.0.0)
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "Test"}],
+                max_tokens=10
+            )
+            return "✅ API Key Working (Old API)"
     except Exception as e:
         return f"❌ API Key Failed: {str(e)[:100]}"
 
