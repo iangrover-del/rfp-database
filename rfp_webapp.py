@@ -1607,10 +1607,10 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         "total_questions_found": len(questions),
         "questions_answered": len(matches),
         "debug_info": {
-            "qa_pairs_found": len(modern_health_knowledge),
+            "qa_pairs_found": len(modern_health_knowledge.split('\n\n')) if modern_health_knowledge else 0,
             "submissions_processed": len(existing_submissions),
             "method": "ai_knowledge_system",
-            "first_qa_pair": modern_health_knowledge[0] if modern_health_knowledge else None
+            "first_qa_pair": modern_health_knowledge[:500] if modern_health_knowledge else None
         }
     }
 
@@ -3807,7 +3807,11 @@ def show_process_page(client):
                 st.write(f"Knowledge base size: {matches['debug_info']['qa_pairs_found']} Q&A pairs")
                 st.write(f"Submissions processed: {matches['debug_info']['submissions_processed']}")
                 if matches['debug_info'].get('first_qa_pair'):
-                    st.write(f"Sample knowledge: {matches['debug_info']['first_qa_pair']['question'][:100]}...")
+                    if isinstance(matches['debug_info']['first_qa_pair'], dict):
+                        st.write(f"Sample knowledge: {matches['debug_info']['first_qa_pair']['question'][:100]}...")
+                    else:
+                        st.write(f"Knowledge base type: {type(matches['debug_info']['first_qa_pair'])}")
+                        st.write(f"Knowledge base preview: {str(matches['debug_info']['first_qa_pair'])[:200]}...")
                 else:
                     st.write("No knowledge base built from submissions")
                 
