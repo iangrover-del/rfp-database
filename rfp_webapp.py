@@ -1271,7 +1271,7 @@ def generate_contextual_answer(question: str) -> str:
     
     # Fitness-for-duty questions
     elif 'fitness for duty' in question_lower or 'fitness-for-duty' in question_lower:
-        return "Modern Health provides fitness-for-duty evaluations through our network of licensed mental health professionals. Our process includes comprehensive assessment, evaluation, and recommendations for workplace accommodations or return-to-work plans. We follow industry standards and can provide detailed reports for HR and management review."
+        return "Modern Health provides fitness-for-duty evaluations through our network of licensed mental health professionals. Our process includes comprehensive assessment, evaluation, and recommendations for workplace accommodations or return-to-work plans. We follow industry standards and can provide detailed reports for HR and management review. Standard delivery time is typically 3-5 business days for initial assessment and 7-10 business days for comprehensive evaluation reports."
     
     # Leave of absence questions
     elif any(word in question_lower for word in ['leave', 'absence', 'loa']):
@@ -1699,12 +1699,13 @@ INSTRUCTIONS:
 1. Use the knowledge base above to answer the question concisely and directly
 2. Keep answers focused and to the point - avoid unnecessary repetition or verbose explanations
 3. If the knowledge base contains relevant information, provide a clear, specific answer
-4. If the knowledge base doesn't contain relevant information, say so clearly and briefly
+4. If the knowledge base doesn't contain specific information, provide a helpful, professional response based on Modern Health's general capabilities
 5. Maintain consistency with Modern Health's capabilities and services
 6. Do NOT mention other company names or brands
 7. Focus on specific, actionable information from the knowledge base
 8. If you find conflicting information, use the most recent or most detailed version
 9. For provider count questions, provide specific numbers if available in the knowledge base
+10. Be helpful and informative - avoid saying "not available" unless truly no relevant information exists
 
 Generate a concise, professional RFP response based on the knowledge base:"""
 
