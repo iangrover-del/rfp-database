@@ -1783,6 +1783,8 @@ INSTRUCTIONS:
 6. Focus on the most relevant and accurate information
 7. If historical answers conflict, choose the most recent or most detailed one
 8. Make sure the answer directly addresses the question asked
+9. CRITICAL: Only use information that is directly relevant to the question. Do NOT include information about unrelated topics like kits, engagement metrics, or general service descriptions unless the question specifically asks about them
+10. If the historical answers don't contain relevant information for the question, say so rather than including irrelevant details
 
 Generate a professional RFP response:"""
 
@@ -1811,6 +1813,22 @@ Generate a professional RFP response:"""
         # Check if answer seems relevant (basic validation)
         question_lower = question.lower()
         answer_lower = synthesized_answer.lower()
+        
+        # Reject answers that are clearly about different topics
+        irrelevant_topics = {
+            'kits': ['kits', 'topics', 'adoption', 'assisted living', 'career', 'college', 'financial fitness', 'grief', 'new parent', 'retirement', 'pet care', 'tobacco cessation', 'teens', 'toddlers', 'lifecycle', 'brochures', 'dvds', 'books', 'gift items'],
+            'engagement': ['engagement', 'well-being assessment', 'matched with provider', 'listened to meditation', 'interacted with digital', 'viewed daily pause', 'attended session', 'rsvp\'d to circle'],
+            'communication': ['customer agreement permits', 'communicate with eligible', 'member registration email', 'drive registration'],
+            'general_services': ['comprehensive mental health', 'therapy', 'coaching', 'crisis support', 'digital resources', 'virtual and in-person care', 'network of licensed professionals']
+        }
+        
+        # Check if answer is about irrelevant topics
+        for topic, keywords in irrelevant_topics.items():
+            if any(keyword in answer_lower for keyword in keywords):
+                # But allow if the question is actually about that topic
+                if not any(keyword in question_lower for keyword in keywords):
+                    print(f"DEBUG: Answer is about {topic} but question is not")
+                    return ""
         
         # If question is about specific topics, make sure answer addresses them
         if 'eligibility' in question_lower and 'file' in question_lower:
