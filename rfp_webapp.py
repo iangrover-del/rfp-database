@@ -1299,80 +1299,80 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             
             # Simple but intelligent matching
             for qa_pair in all_qa_pairs[:150]:  # Check more pairs for better results
-            # Skip obviously irrelevant answers
-            answer_lower = qa_pair['answer'].lower()
-            if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
-                continue
-            
-            # Skip if answer is just a name/email
-            if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
-                continue
-            
-            # Calculate intelligent matching score
-            hist_question_lower = qa_pair['question'].lower()
-            hist_words = set(hist_question_lower.split())
-            
-            score = 0
-            
-            # 1. Flexible phrase matching (highest priority)
-            important_phrases = [
-                'geo access', 'sample login', 'visit limit', 'eligibility file', 
-                'definition of dependents', 'fitness for duty', 'leave of absence',
-                'implementation timeline', 'health plan integration', 'fees',
-                'performance guarantees', 'roi estimate', 'fees at risk',
-                'mental health coaches', 'therapists', 'psychiatrists', 'nurse practitioner',
-                'in-person', 'virtual', 'adults', 'child', 'adolescents', 'ages',
-                'wait times', 'appointment', 'account management', 'team',
-                'utilization assumption', 'financial template', 'guaranteed', 'three years',
-                'offset costs', 'carrier', 'anthem', 'health plan integration'
-            ]
-            
-            # Check for phrase matches with variations
-            for phrase in important_phrases:
-                if phrase in question_lower:
-                    # Look for variations in historical question
-                    phrase_words = phrase.split()
-                    if len(phrase_words) >= 2:
-                        # Check if most words from phrase appear in historical question
-                        matches = sum(1 for word in phrase_words if word in hist_question_lower)
-                        if matches >= len(phrase_words) * 0.7:  # 70% of words match
-                            score += 0.6  # High boost for phrase variations
-                    elif phrase in hist_question_lower:
-                        score += 0.8  # Exact single word match
-            
-            # 2. Word overlap with context awareness
-            common_words = question_words & hist_words
-            if common_words:
-                # Remove common stop words for better matching
-                stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'please', 'provide', 'your', 'you', 'we', 'our', 'us', 'this', 'that', 'these', 'those'}
-                meaningful_common = common_words - stop_words
-                if meaningful_common:
-                    word_score = len(meaningful_common) / max(len(question_words - stop_words), len(hist_words - stop_words))
-                    score += word_score * 0.5  # Increased weight
-            
-            # 3. Boost for question type matches
-            if 'how many' in question_lower and 'how many' in hist_question_lower:
-                score += 0.4
-            if 'definition' in question_lower and 'definition' in hist_question_lower:
-                score += 0.4
-            if 'timeline' in question_lower and 'timeline' in hist_question_lower:
-                score += 0.4
-            if 'complete' in question_lower and 'complete' in hist_question_lower:
-                score += 0.3
-            if 'provide' in question_lower and 'provide' in hist_question_lower:
-                score += 0.2
-            if 'outline' in question_lower and 'outline' in hist_question_lower:
-                score += 0.3
-            if 'discuss' in question_lower and 'discuss' in hist_question_lower:
-                score += 0.3
-            
-            # 4. Penalty for obviously irrelevant content
-            if any(word in answer_lower for word in ['kit', 'topic', 'adoption', 'assisted living', 'career', 'college']):
-                score -= 0.5
-            
-            if score > best_score and score > 0.1:  # More permissive threshold
-                best_match = qa_pair
-                best_score = score
+                # Skip obviously irrelevant answers
+                answer_lower = qa_pair['answer'].lower()
+                if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
+                    continue
+                
+                # Skip if answer is just a name/email
+                if '@' in qa_pair['answer'] and len(qa_pair['answer']) < 100:
+                    continue
+                
+                # Calculate intelligent matching score
+                hist_question_lower = qa_pair['question'].lower()
+                hist_words = set(hist_question_lower.split())
+                
+                score = 0
+                
+                # 1. Flexible phrase matching (highest priority)
+                important_phrases = [
+                    'geo access', 'sample login', 'visit limit', 'eligibility file', 
+                    'definition of dependents', 'fitness for duty', 'leave of absence',
+                    'implementation timeline', 'health plan integration', 'fees',
+                    'performance guarantees', 'roi estimate', 'fees at risk',
+                    'mental health coaches', 'therapists', 'psychiatrists', 'nurse practitioner',
+                    'in-person', 'virtual', 'adults', 'child', 'adolescents', 'ages',
+                    'wait times', 'appointment', 'account management', 'team',
+                    'utilization assumption', 'financial template', 'guaranteed', 'three years',
+                    'offset costs', 'carrier', 'anthem', 'health plan integration'
+                ]
+                
+                # Check for phrase matches with variations
+                for phrase in important_phrases:
+                    if phrase in question_lower:
+                        # Look for variations in historical question
+                        phrase_words = phrase.split()
+                        if len(phrase_words) >= 2:
+                            # Check if most words from phrase appear in historical question
+                            matches = sum(1 for word in phrase_words if word in hist_question_lower)
+                            if matches >= len(phrase_words) * 0.7:  # 70% of words match
+                                score += 0.6  # High boost for phrase variations
+                        elif phrase in hist_question_lower:
+                            score += 0.8  # Exact single word match
+                
+                # 2. Word overlap with context awareness
+                common_words = question_words & hist_words
+                if common_words:
+                    # Remove common stop words for better matching
+                    stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'please', 'provide', 'your', 'you', 'we', 'our', 'us', 'this', 'that', 'these', 'those'}
+                    meaningful_common = common_words - stop_words
+                    if meaningful_common:
+                        word_score = len(meaningful_common) / max(len(question_words - stop_words), len(hist_words - stop_words))
+                        score += word_score * 0.5  # Increased weight
+                
+                # 3. Boost for question type matches
+                if 'how many' in question_lower and 'how many' in hist_question_lower:
+                    score += 0.4
+                if 'definition' in question_lower and 'definition' in hist_question_lower:
+                    score += 0.4
+                if 'timeline' in question_lower and 'timeline' in hist_question_lower:
+                    score += 0.4
+                if 'complete' in question_lower and 'complete' in hist_question_lower:
+                    score += 0.3
+                if 'provide' in question_lower and 'provide' in hist_question_lower:
+                    score += 0.2
+                if 'outline' in question_lower and 'outline' in hist_question_lower:
+                    score += 0.3
+                if 'discuss' in question_lower and 'discuss' in hist_question_lower:
+                    score += 0.3
+                
+                # 4. Penalty for obviously irrelevant content
+                if any(word in answer_lower for word in ['kit', 'topic', 'adoption', 'assisted living', 'career', 'college']):
+                    score -= 0.5
+                
+                if score > best_score and score > 0.1:  # More permissive threshold
+                    best_match = qa_pair
+                    best_score = score
         
         if best_match and best_score > 0.1:
             try:
