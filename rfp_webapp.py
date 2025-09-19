@@ -1189,36 +1189,36 @@ def generate_contextual_answer(question: str) -> str:
     if 'how many' in question_lower and any(word in question_lower for word in ['coaches', 'therapists', 'psychiatrists', 'providers', 'nurse practitioner']):
         if 'coaches' in question_lower:
             if 'in-person' in question_lower:
-                return "Modern Health has 1,200+ in-person mental health coaches across all 50 states. Our in-person coaches provide face-to-face support and can meet with members at convenient locations or through our network of partner facilities."
+                return "Modern Health has 1,200+ in-person mental health coaches across all 50 states."
             elif 'virtual' in question_lower:
-                return "Modern Health has 2,500+ virtual mental health coaches available across all 50 states. Our virtual coaches provide convenient online support through video, phone, and chat sessions, ensuring accessibility regardless of location."
+                return "Modern Health has 2,500+ virtual mental health coaches available across all 50 states."
             else:
-                return "Modern Health has a network of 2,500+ licensed mental health coaches across all 50 states, with both in-person and virtual options available. Our coaches are trained in evidence-based practices and provide support for a wide range of mental health concerns."
+                return "Modern Health has 2,500+ licensed mental health coaches across all 50 states, with both in-person and virtual options available."
         elif 'therapists' in question_lower:
             if 'in-person' in question_lower:
-                return "Modern Health has 35,000+ in-person licensed therapists across all 50 states. Our in-person therapists provide face-to-face therapy sessions and can meet with members at convenient locations throughout the country."
+                return "Modern Health has 35,000+ in-person licensed therapists across all 50 states."
             elif 'virtual' in question_lower:
-                return "Modern Health has 49,000+ virtual licensed therapists available across all 50 states. Our virtual therapists provide convenient online therapy sessions through secure video platforms, ensuring accessibility and flexibility."
+                return "Modern Health has 49,000+ virtual licensed therapists available across all 50 states."
             elif 'child' in question_lower or 'adolescent' in question_lower:
-                return "Modern Health has 15,000+ licensed therapists specializing in child and adolescent care across all 50 states. Our child and adolescent therapists are trained in age-appropriate therapeutic approaches and provide both in-person and virtual care options."
+                return "Modern Health has 15,000+ licensed therapists specializing in child and adolescent care across all 50 states."
             else:
-                return "Modern Health's network includes 84,000+ licensed therapists across the United States, covering all 50 states with both in-person and virtual care options. Our therapists are licensed professionals specializing in various therapeutic approaches."
+                return "Modern Health's network includes 84,000+ licensed therapists across the United States, covering all 50 states."
         elif 'psychiatrists' in question_lower:
             if 'in-person' in question_lower:
-                return "Modern Health has 400+ in-person licensed psychiatrists across all 50 states. Our in-person psychiatrists provide face-to-face psychiatric evaluations and medication management at convenient locations."
+                return "Modern Health has 400+ in-person licensed psychiatrists across all 50 states."
             elif 'virtual' in question_lower:
-                return "Modern Health has 800+ virtual licensed psychiatrists available across all 50 states. Our virtual psychiatrists provide convenient online psychiatric evaluations and medication management through secure video platforms."
+                return "Modern Health has 800+ virtual licensed psychiatrists available across all 50 states."
             elif 'child' in question_lower or 'adolescent' in question_lower:
-                return "Modern Health has 200+ licensed psychiatrists specializing in child and adolescent psychiatry across all 50 states. Our child and adolescent psychiatrists provide both in-person and virtual psychiatric care for younger populations."
+                return "Modern Health has 200+ licensed psychiatrists specializing in child and adolescent psychiatry across all 50 states."
             else:
-                return "Modern Health has access to 1,200+ licensed psychiatrists across the United States, providing both in-person and virtual psychiatric services. Our psychiatrists can prescribe medications and provide comprehensive mental health treatment."
+                return "Modern Health has access to 1,200+ licensed psychiatrists across the United States."
         elif 'nurse practitioner' in question_lower:
             if 'in-person' in question_lower:
-                return "Modern Health has 300+ in-person psychiatric mental health nurse practitioners across all 50 states. Our in-person nurse practitioners provide face-to-face psychiatric evaluations and medication management."
+                return "Modern Health has 300+ in-person psychiatric mental health nurse practitioners across all 50 states."
             elif 'virtual' in question_lower:
-                return "Modern Health has 500+ virtual psychiatric mental health nurse practitioners available across all 50 states. Our virtual nurse practitioners provide convenient online psychiatric evaluations and medication management."
+                return "Modern Health has 500+ virtual psychiatric mental health nurse practitioners available across all 50 states."
             else:
-                return "Modern Health has 800+ psychiatric mental health nurse practitioners across all 50 states, providing both in-person and virtual psychiatric services. Our nurse practitioners can prescribe medications and provide comprehensive mental health treatment under physician supervision."
+                return "Modern Health has 800+ psychiatric mental health nurse practitioners across all 50 states."
         else:
             return "Modern Health's provider network includes 84,000+ licensed mental health professionals across all 50 states, including therapists, coaches, and psychiatrists, with both in-person and virtual care options available."
     
@@ -1696,15 +1696,17 @@ KNOWLEDGE BASE:
 {knowledge_base}
 
 INSTRUCTIONS:
-1. Use the knowledge base above to answer the question
-2. If the knowledge base contains relevant information, synthesize it into a comprehensive answer
-3. If the knowledge base doesn't contain relevant information, say so clearly
-4. Maintain consistency with Modern Health's capabilities and services
-5. Do NOT mention other company names or brands
-6. Focus on specific, actionable information from the knowledge base
-7. If you find conflicting information, use the most recent or most detailed version
+1. Use the knowledge base above to answer the question concisely and directly
+2. Keep answers focused and to the point - avoid unnecessary repetition or verbose explanations
+3. If the knowledge base contains relevant information, provide a clear, specific answer
+4. If the knowledge base doesn't contain relevant information, say so clearly and briefly
+5. Maintain consistency with Modern Health's capabilities and services
+6. Do NOT mention other company names or brands
+7. Focus on specific, actionable information from the knowledge base
+8. If you find conflicting information, use the most recent or most detailed version
+9. For provider count questions, provide specific numbers if available in the knowledge base
 
-Generate a professional RFP response based on the knowledge base:"""
+Generate a concise, professional RFP response based on the knowledge base:"""
 
         print(f"DEBUG: Calling OpenAI API with prompt length: {len(prompt)}")
         print(f"DEBUG: Prompt preview: {prompt[:200]}...")
@@ -1718,7 +1720,7 @@ Generate a professional RFP response based on the knowledge base:"""
                     {"role": "system", "content": "You are an expert RFP response writer specializing in mental health and EAP services for Modern Health. Always provide accurate, specific answers based on the knowledge base provided."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=500,
+                max_tokens=300,
                 temperature=0.3
             )
         except Exception as new_api_error:
@@ -1729,7 +1731,7 @@ Generate a professional RFP response based on the knowledge base:"""
                     {"role": "system", "content": "You are an expert RFP response writer specializing in mental health and EAP services for Modern Health. Always provide accurate, specific answers based on the knowledge base provided."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=500,
+                max_tokens=300,
                 temperature=0.3
             )
         
