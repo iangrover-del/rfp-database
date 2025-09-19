@@ -1313,7 +1313,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             
             score = 0
             
-            # 1. Exact phrase matching (highest priority)
+            # 1. Flexible phrase matching (highest priority)
             important_phrases = [
                 'geo access', 'sample login', 'visit limit', 'eligibility file', 
                 'definition of dependents', 'fitness for duty', 'leave of absence',
@@ -1326,33 +1326,54 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 'offset costs', 'carrier', 'anthem', 'health plan integration'
             ]
             
+            # Check for phrase matches with variations
             for phrase in important_phrases:
-                if phrase in question_lower and phrase in hist_question_lower:
-                    score += 0.8  # Very high boost for exact phrase matches
+                if phrase in question_lower:
+                    # Look for variations in historical question
+                    phrase_words = phrase.split()
+                    if len(phrase_words) >= 2:
+                        # Check if most words from phrase appear in historical question
+                        matches = sum(1 for word in phrase_words if word in hist_question_lower)
+                        if matches >= len(phrase_words) * 0.7:  # 70% of words match
+                            score += 0.6  # High boost for phrase variations
+                    elif phrase in hist_question_lower:
+                        score += 0.8  # Exact single word match
             
             # 2. Word overlap with context awareness
             common_words = question_words & hist_words
             if common_words:
-                word_score = len(common_words) / max(len(question_words), len(hist_words))
-                score += word_score * 0.4
+                # Remove common stop words for better matching
+                stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'please', 'provide', 'your', 'you', 'we', 'our', 'us', 'this', 'that', 'these', 'those'}
+                meaningful_common = common_words - stop_words
+                if meaningful_common:
+                    word_score = len(meaningful_common) / max(len(question_words - stop_words), len(hist_words - stop_words))
+                    score += word_score * 0.5  # Increased weight
             
             # 3. Boost for question type matches
             if 'how many' in question_lower and 'how many' in hist_question_lower:
-                score += 0.3
+                score += 0.4
             if 'definition' in question_lower and 'definition' in hist_question_lower:
-                score += 0.3
+                score += 0.4
             if 'timeline' in question_lower and 'timeline' in hist_question_lower:
+                score += 0.4
+            if 'complete' in question_lower and 'complete' in hist_question_lower:
+                score += 0.3
+            if 'provide' in question_lower and 'provide' in hist_question_lower:
+                score += 0.2
+            if 'outline' in question_lower and 'outline' in hist_question_lower:
+                score += 0.3
+            if 'discuss' in question_lower and 'discuss' in hist_question_lower:
                 score += 0.3
             
             # 4. Penalty for obviously irrelevant content
             if any(word in answer_lower for word in ['kit', 'topic', 'adoption', 'assisted living', 'career', 'college']):
                 score -= 0.5
             
-            if score > best_score and score > 0.2:  # Reasonable threshold
+            if score > best_score and score > 0.1:  # More permissive threshold
                 best_match = qa_pair
                 best_score = score
         
-        if best_match and best_score > 0.2:
+        if best_match and best_score > 0.1:
             # Clean brand names from the answer
             cleaned_answer = clean_brand_names(best_match['answer'])
             
