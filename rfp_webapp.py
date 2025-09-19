@@ -1487,8 +1487,8 @@ def is_answer_relevant_to_question(question_lower: str, answer_lower: str) -> bo
     return len(answer_lower) > 20 and not any(phrase in answer_lower for phrase in generic_phrases)
 
 def find_matching_answers_simple(questions: List[str], existing_submissions: List) -> Dict[str, Any]:
-    """AI Learning System: Use historical RFP data to generate intelligent answers"""
-    print("DEBUG: Building AI learning system from historical RFP data")
+    """AI Knowledge System: Build comprehensive Modern Health knowledge base and recall intelligently"""
+    print("DEBUG: Building AI knowledge system from historical RFP data")
     
     matches = []
     
@@ -1521,11 +1521,11 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             }
         }
     
-    # Build knowledge base from historical submissions
-    knowledge_base = build_knowledge_base(existing_submissions)
-    print(f"DEBUG: Built knowledge base with {len(knowledge_base)} Q&A pairs")
+    # Build comprehensive Modern Health knowledge base
+    modern_health_knowledge = build_modern_health_knowledge_base(existing_submissions)
+    print(f"DEBUG: Built Modern Health knowledge base with {len(modern_health_knowledge)} knowledge entries")
     
-    if not knowledge_base:
+    if not modern_health_knowledge:
         print("DEBUG: Knowledge base is empty, using contextual generation")
         # Fallback to contextual generation if knowledge base is empty
         for i, question in enumerate(questions):
@@ -1553,42 +1553,26 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             }
         }
     
-    # Use AI learning system to generate answers from historical data
+    # Use AI knowledge system to generate answers from Modern Health knowledge
     for i, question in enumerate(questions):
-        print(f"DEBUG: Learning from historical data for question {i+1}/{len(questions)}: {question[:50]}...")
+        print(f"DEBUG: Using AI knowledge system for question {i+1}/{len(questions)}: {question[:50]}...")
         
         try:
-            # Find relevant historical answers using semantic search
-            relevant_answers = find_relevant_historical_answers(question, knowledge_base)
+            # Use AI to generate answer from Modern Health knowledge base
+            ai_answer = generate_answer_from_knowledge_base(question, modern_health_knowledge)
             
-            if relevant_answers:
-                # Use AI to synthesize answer from historical data
-                synthesized_answer = synthesize_answer_from_history(question, relevant_answers)
-                
-                if synthesized_answer and len(synthesized_answer) > 20:
-                    matches.append({
-                        "question": question,
-                        "suggested_answer": synthesized_answer,
-                        "confidence": 85,  # High confidence for AI-synthesized answers from historical data
-                        "source_rfp": f"AI Learning from {len(relevant_answers)} historical sources",
-                        "category": "ai_learning",
-                        "source_status": "learned",
-                        "matching_reason": f"AI synthesized answer from {len(relevant_answers)} relevant historical responses"
-                    })
-                else:
-                    # Fallback to contextual generation
-                    generated_answer = generate_contextual_answer(question)
-                    matches.append({
-                        "question": question,
-                        "suggested_answer": generated_answer or "Please provide a custom answer based on your specific requirements.",
-                        "confidence": 60,
-                        "source_rfp": "AI Generated",
-                        "category": "ai_contextual",
-                        "source_status": "generated",
-                        "matching_reason": "AI synthesis failed, using contextual generation"
-                    })
+            if ai_answer and len(ai_answer) > 20:
+                matches.append({
+                    "question": question,
+                    "suggested_answer": ai_answer,
+                    "confidence": 90,  # Very high confidence for AI knowledge-based answers
+                    "source_rfp": "AI Knowledge System - Modern Health",
+                    "category": "ai_knowledge",
+                    "source_status": "learned",
+                    "matching_reason": "AI generated answer from comprehensive Modern Health knowledge base"
+                })
             else:
-                # No relevant historical data found, use contextual generation
+                # Fallback to contextual generation
                 generated_answer = generate_contextual_answer(question)
                 matches.append({
                     "question": question,
@@ -1597,11 +1581,11 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                     "source_rfp": "AI Generated",
                     "category": "ai_contextual",
                     "source_status": "generated",
-                    "matching_reason": "No relevant historical data found, using contextual generation"
+                    "matching_reason": "AI knowledge system failed, using contextual generation"
                 })
                 
         except Exception as e:
-            print(f"DEBUG: Error in AI learning for question {i+1}: {e}")
+            print(f"DEBUG: Error in AI knowledge system for question {i+1}: {e}")
             # Fallback to contextual generation
             generated_answer = generate_contextual_answer(question)
             matches.append({
@@ -1611,7 +1595,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 "source_rfp": "AI Generated",
                 "category": "ai_contextual",
                 "source_status": "generated",
-                "matching_reason": f"AI learning error: {str(e)[:50]}"
+                "matching_reason": f"AI knowledge system error: {str(e)[:50]}"
             })
     
     # Calculate overall confidence
@@ -1623,12 +1607,92 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         "total_questions_found": len(questions),
         "questions_answered": len(matches),
         "debug_info": {
-            "qa_pairs_found": len(knowledge_base),
+            "qa_pairs_found": len(modern_health_knowledge),
             "submissions_processed": len(existing_submissions),
-            "method": "ai_learning_system",
-            "first_qa_pair": knowledge_base[0] if knowledge_base else None
+            "method": "ai_knowledge_system",
+            "first_qa_pair": modern_health_knowledge[0] if modern_health_knowledge else None
         }
     }
+
+def build_modern_health_knowledge_base(existing_submissions: List) -> str:
+    """Build a comprehensive Modern Health knowledge base from all historical submissions"""
+    knowledge_entries = []
+    
+    for submission in existing_submissions:
+        if len(submission) > 4 and submission[4]:
+            try:
+                data = json.loads(submission[4])
+                print(f"DEBUG: Building knowledge from {submission[1]}")
+                
+                if 'question_answer_pairs' in data:
+                    pairs = data['question_answer_pairs']
+                    for pair in pairs:
+                        if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
+                            if pair['answer'] and len(pair['answer'].strip()) > 20:
+                                knowledge_entries.append(f"Q: {pair['question']}\nA: {pair['answer']}\n")
+                elif 'all_questions_found' in data:
+                    questions_found = data['all_questions_found']
+                    if isinstance(questions_found, list):
+                        for pair in questions_found:
+                            if isinstance(pair, dict) and 'question' in pair and 'answer' in pair:
+                                if pair['answer'] and len(pair['answer'].strip()) > 20:
+                                    knowledge_entries.append(f"Q: {pair['question']}\nA: {pair['answer']}\n")
+            except Exception as e:
+                print(f"DEBUG: Error parsing submission {submission[1]}: {e}")
+                continue
+    
+    # Combine all knowledge into a comprehensive knowledge base
+    knowledge_base = "MODERN HEALTH KNOWLEDGE BASE:\n\n"
+    knowledge_base += "This knowledge base contains information about Modern Health's capabilities, processes, and services based on historical RFP responses.\n\n"
+    
+    for entry in knowledge_entries:
+        knowledge_base += entry + "\n"
+    
+    print(f"DEBUG: Built knowledge base with {len(knowledge_entries)} entries")
+    return knowledge_base
+
+def generate_answer_from_knowledge_base(question: str, knowledge_base: str) -> str:
+    """Use AI to generate answers from the comprehensive Modern Health knowledge base"""
+    try:
+        prompt = f"""You are an expert RFP response writer for Modern Health. You have access to a comprehensive knowledge base about Modern Health's capabilities, processes, and services.
+
+QUESTION: {question}
+
+KNOWLEDGE BASE:
+{knowledge_base}
+
+INSTRUCTIONS:
+1. Use the knowledge base above to answer the question
+2. If the knowledge base contains relevant information, synthesize it into a comprehensive answer
+3. If the knowledge base doesn't contain relevant information, say so clearly
+4. Maintain consistency with Modern Health's capabilities and services
+5. Do NOT mention other company names or brands
+6. Focus on specific, actionable information from the knowledge base
+7. If you find conflicting information, use the most recent or most detailed version
+
+Generate a professional RFP response based on the knowledge base:"""
+
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are an expert RFP response writer specializing in mental health and EAP services for Modern Health. Always provide accurate, specific answers based on the knowledge base provided."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=500,
+            temperature=0.3
+        )
+        
+        answer = response.choices[0].message.content.strip()
+        
+        # Clean up the answer
+        if answer.startswith("Based on the knowledge base"):
+            answer = answer.split("\n", 1)[1] if "\n" in answer else answer
+        
+        return answer
+        
+    except Exception as e:
+        print(f"DEBUG: Error in AI knowledge generation: {e}")
+        return ""
 
 def find_relevant_historical_answers(question: str, knowledge_base: List[Dict]) -> List[Dict]:
     """Find relevant historical answers using semantic similarity and keyword matching"""
