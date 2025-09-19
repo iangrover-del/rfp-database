@@ -1289,15 +1289,16 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
     matches = []
     
     for i, question in enumerate(questions):
-        print(f"DEBUG: Processing question {i+1}/{len(questions)}: {question[:50]}...")
-        
-        best_match = None
-        best_score = 0
-        question_lower = question.lower()
-        question_words = set(question_lower.split())
-        
-        # Simple but intelligent matching
-        for qa_pair in all_qa_pairs[:150]:  # Check more pairs for better results
+        try:
+            print(f"DEBUG: Processing question {i+1}/{len(questions)}: {question[:50]}...")
+            
+            best_match = None
+            best_score = 0
+            question_lower = question.lower() if question else ""
+            question_words = set(question_lower.split()) if question_lower else set()
+            
+            # Simple but intelligent matching
+            for qa_pair in all_qa_pairs[:150]:  # Check more pairs for better results
             # Skip obviously irrelevant answers
             answer_lower = qa_pair['answer'].lower()
             if len(answer_lower) < 10 or answer_lower in ['no answer provided', 'n/a', 'tbd', 'to be determined']:
@@ -1374,25 +1375,40 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 best_score = score
         
         if best_match and best_score > 0.1:
-            # Clean brand names from the answer
             try:
+                # Clean brand names from the answer
                 answer_text = best_match.get('answer', '')
                 if not isinstance(answer_text, str):
                     answer_text = str(answer_text) if answer_text else ''
                 cleaned_answer = clean_brand_names(answer_text)
+                
+                # Ensure best_score is a number
+                if not isinstance(best_score, (int, float)):
+                    best_score = 0.5  # Default score
+                
+                confidence = min(80, int(best_score * 100))
+                
+                matches.append({
+                    "question": question,
+                    "suggested_answer": cleaned_answer,
+                    "confidence": confidence,
+                    "source_rfp": best_match.get('source', 'Unknown'),
+                    "category": "intelligent_match",
+                    "source_status": best_match.get('status', 'unknown'),
+                    "matching_reason": f"Intelligent match (score: {best_score:.3f})"
+                })
             except Exception as e:
-                print(f"DEBUG: Error cleaning answer: {e}")
-                cleaned_answer = str(best_match.get('answer', ''))
-            
-            matches.append({
-                "question": question,
-                "suggested_answer": cleaned_answer,
-                "confidence": min(80, int(best_score * 100)),
-                "source_rfp": best_match.get('source', 'Unknown'),
-                "category": "intelligent_match",
-                "source_status": best_match.get('status', 'unknown'),
-                "matching_reason": f"Intelligent match (score: {best_score:.3f})"
-            })
+                print(f"DEBUG: Error creating match for question {i+1}: {e}")
+                # Fallback match
+                matches.append({
+                    "question": question,
+                    "suggested_answer": "Error processing answer. Please provide a custom answer.",
+                    "confidence": 10,
+                    "source_rfp": "Error",
+                    "category": "error",
+                    "source_status": "unknown",
+                    "matching_reason": f"Error: {str(e)[:50]}"
+                })
         else:
             # Provide a fallback answer
             matches.append({
@@ -1403,6 +1419,17 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 "category": "no_match",
                 "source_status": "unknown",
                 "matching_reason": f"No match found (best score: {best_score:.3f})"
+            })
+        except Exception as e:
+            print(f"DEBUG: Error processing question {i+1}: {e}")
+            matches.append({
+                "question": question,
+                "suggested_answer": "Error processing question. Please provide a custom answer.",
+                "confidence": 10,
+                "source_rfp": "Error",
+                "category": "error",
+                "source_status": "unknown",
+                "matching_reason": f"Processing error: {str(e)[:50]}"
             })
     
     return {
