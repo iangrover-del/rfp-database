@@ -4700,7 +4700,7 @@ def show_question_page(client):
     
     # Get existing submissions to build knowledge base
     try:
-        existing_submissions = get_existing_submissions(client)
+        existing_submissions = get_all_submissions()
         if not existing_submissions:
             st.warning("⚠️ No historical RFPs found. Upload some RFPs first to build the knowledge base.")
             return
