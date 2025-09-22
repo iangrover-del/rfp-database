@@ -1271,7 +1271,7 @@ def generate_contextual_answer(question: str) -> str:
     
     # Fitness-for-duty questions
     elif 'fitness for duty' in question_lower or 'fitness-for-duty' in question_lower:
-        return "Modern Health provides fitness-for-duty evaluations through our network of licensed mental health professionals. Our process includes comprehensive assessment, evaluation, and recommendations for workplace accommodations or return-to-work plans. We follow industry standards and can provide detailed reports for HR and management review. Standard delivery time is typically 3-5 business days for initial assessment and 7-10 business days for comprehensive evaluation reports."
+        return "Modern Health provides fitness-for-duty evaluations through our network of licensed mental health professionals. Our process includes comprehensive assessment, evaluation, and recommendations for workplace accommodations or return-to-work plans. We follow industry standards and can provide detailed reports for HR and management review. Standard delivery time is typically 3-5 business days for initial assessment and 7-10 business days for comprehensive evaluation reports. Our fitness-for-duty services include psychological assessment, workplace accommodation recommendations, and return-to-work planning."
     
     # Leave of absence questions
     elif any(word in question_lower for word in ['leave', 'absence', 'loa']):
@@ -1564,7 +1564,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             
             if ai_answer and len(ai_answer) > 20:
                 # Check if this is a provider count question that got a generic "not available" response
-                if any(word in question.lower() for word in ['how many', 'coaches', 'therapists', 'psychiatrists', 'providers']) and 'not available' in ai_answer.lower():
+                if any(word in question.lower() for word in ['how many', 'coaches', 'therapists', 'psychiatrists', 'providers']) and ('not available' in ai_answer.lower() or 'does not have specific' in ai_answer.lower() or 'does not provide' in ai_answer.lower()):
                     print(f"DEBUG: AI knowledge system gave generic response for provider count question {i+1}, using contextual generation")
                     # Fallback to contextual generation for provider counts
                     generated_answer = generate_contextual_answer(question)
@@ -1577,6 +1577,32 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                         "source_status": "generated",
                         "matching_reason": "AI knowledge system gave generic response for provider count, using contextual generation"
                     })
+                # Check if this is a fitness-for-duty question that got a generic response
+                elif 'fitness for duty' in question.lower() or 'fitness-for-duty' in question.lower():
+                    if 'does not have specific' in ai_answer.lower() or 'not available' in ai_answer.lower():
+                        print(f"DEBUG: AI knowledge system gave generic response for fitness-for-duty question {i+1}, using contextual generation")
+                        # Fallback to contextual generation for fitness-for-duty
+                        generated_answer = generate_contextual_answer(question)
+                        matches.append({
+                            "question": question,
+                            "suggested_answer": generated_answer or "Please provide a custom answer based on your specific requirements.",
+                            "confidence": 80,
+                            "source_rfp": "AI Generated",
+                            "category": "ai_contextual",
+                            "source_status": "generated",
+                            "matching_reason": "AI knowledge system gave generic response for fitness-for-duty, using contextual generation"
+                        })
+                    else:
+                        print(f"DEBUG: AI knowledge system succeeded for fitness-for-duty question {i+1}")
+                        matches.append({
+                            "question": question,
+                            "suggested_answer": ai_answer,
+                            "confidence": 90,  # Very high confidence for AI knowledge-based answers
+                            "source_rfp": "AI Knowledge System - Modern Health",
+                            "category": "ai_knowledge",
+                            "source_status": "learned",
+                            "matching_reason": "AI generated answer from comprehensive Modern Health knowledge base"
+                        })
                 else:
                     print(f"DEBUG: AI knowledge system succeeded for question {i+1}")
                     matches.append({
