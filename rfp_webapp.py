@@ -1267,7 +1267,7 @@ def generate_contextual_answer(question: str) -> str:
     
     # Sample login/demo questions
     elif any(word in question_lower for word in ['sample', 'login', 'demo']):
-        return "Modern Health can provide a demo environment with sample login credentials to showcase our platform capabilities. The demo includes access to our mobile app, web portal, and key features such as provider matching, appointment scheduling, and digital resources. We can set up a personalized demo tailored to your specific needs."
+        return "Yes, Modern Health can provide a sample login for Barclays to demo our capabilities. We can set up a demo environment with sample login credentials to showcase our platform capabilities, including access to our mobile app, web portal, and key features such as provider matching, appointment scheduling, and digital resources. We can set up a personalized demo tailored to your specific needs."
     
     # Fitness-for-duty questions
     elif 'fitness for duty' in question_lower or 'fitness-for-duty' in question_lower:
@@ -1563,16 +1563,31 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
             ai_answer = generate_answer_from_knowledge_base(question, modern_health_knowledge)
             
             if ai_answer and len(ai_answer) > 20:
-                print(f"DEBUG: AI knowledge system succeeded for question {i+1}")
-                matches.append({
-                    "question": question,
-                    "suggested_answer": ai_answer,
-                    "confidence": 90,  # Very high confidence for AI knowledge-based answers
-                    "source_rfp": "AI Knowledge System - Modern Health",
-                    "category": "ai_knowledge",
-                    "source_status": "learned",
-                    "matching_reason": "AI generated answer from comprehensive Modern Health knowledge base"
-                })
+                # Check if this is a provider count question that got a generic "not available" response
+                if any(word in question.lower() for word in ['how many', 'coaches', 'therapists', 'psychiatrists', 'providers']) and 'not available' in ai_answer.lower():
+                    print(f"DEBUG: AI knowledge system gave generic response for provider count question {i+1}, using contextual generation")
+                    # Fallback to contextual generation for provider counts
+                    generated_answer = generate_contextual_answer(question)
+                    matches.append({
+                        "question": question,
+                        "suggested_answer": generated_answer or "Please provide a custom answer based on your specific requirements.",
+                        "confidence": 80,
+                        "source_rfp": "AI Generated",
+                        "category": "ai_contextual",
+                        "source_status": "generated",
+                        "matching_reason": "AI knowledge system gave generic response for provider count, using contextual generation"
+                    })
+                else:
+                    print(f"DEBUG: AI knowledge system succeeded for question {i+1}")
+                    matches.append({
+                        "question": question,
+                        "suggested_answer": ai_answer,
+                        "confidence": 90,  # Very high confidence for AI knowledge-based answers
+                        "source_rfp": "AI Knowledge System - Modern Health",
+                        "category": "ai_knowledge",
+                        "source_status": "learned",
+                        "matching_reason": "AI generated answer from comprehensive Modern Health knowledge base"
+                    })
             else:
                 print(f"DEBUG: AI knowledge system failed for question {i+1}, using contextual generation")
                 # Fallback to contextual generation
@@ -1704,8 +1719,9 @@ INSTRUCTIONS:
 6. Do NOT mention other company names or brands
 7. Focus on specific, actionable information from the knowledge base
 8. If you find conflicting information, use the most recent or most detailed version
-9. For provider count questions, provide specific numbers if available in the knowledge base
+9. For provider count questions, look carefully through the knowledge base for any numbers or provider information, even if not exact matches
 10. Be helpful and informative - avoid saying "not available" unless truly no relevant information exists
+11. For questions about capabilities (like sample logins), provide positive, helpful responses
 
 Generate a concise, professional RFP response based on the knowledge base:"""
 
