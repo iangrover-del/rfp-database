@@ -3557,7 +3557,7 @@ def main():
     
     page = st.sidebar.selectbox(
         "Choose a page",
-        ["Dashboard", "Upload Historical RFP", "Process New RFP", "Upload Corrected RFP", "Browse Database", "Search", "Export Data"]
+        ["Dashboard", "Upload Historical RFP", "Process New RFP", "Upload Corrected RFP", "Browse Database", "Search", "Export Data", "Ask Questions"]
     )
     
     if page == "Dashboard":
@@ -3574,6 +3574,8 @@ def main():
         show_search_page()
     elif page == "Export Data":
         show_export_page()
+    elif page == "Ask Questions":
+        show_question_page(client)
 
 def show_dashboard(client):
     """Show the main dashboard"""
@@ -4690,6 +4692,141 @@ def show_export_page():
     
     st.subheader("📊 Data Preview")
     st.dataframe(df, use_container_width=True)
+
+def show_question_page(client):
+    """Show the question answering interface"""
+    st.header("🤖 Ask Questions")
+    st.markdown("Ask any question about Modern Health's capabilities and get the best possible answer from our RFP knowledge base.")
+    
+    # Get existing submissions to build knowledge base
+    try:
+        existing_submissions = get_existing_submissions(client)
+        if not existing_submissions:
+            st.warning("⚠️ No historical RFPs found. Upload some RFPs first to build the knowledge base.")
+            return
+        
+        # Build knowledge base
+        modern_health_knowledge = build_modern_health_knowledge_base(existing_submissions)
+        
+        if not modern_health_knowledge or len(modern_health_knowledge) < 100:
+            st.warning("⚠️ Knowledge base is too small. Upload more RFPs to get better answers.")
+            return
+            
+    except Exception as e:
+        st.error(f"❌ Error building knowledge base: {str(e)}")
+        return
+    
+    # Question input
+    st.subheader("💬 Ask Your Question")
+    question = st.text_area(
+        "What would you like to know about Modern Health?",
+        placeholder="e.g., How many therapists do you have? What's your implementation timeline? Do you offer fitness-for-duty evaluations?",
+        height=100
+    )
+    
+    if st.button("🔍 Get Answer", type="primary"):
+        if not question.strip():
+            st.warning("Please enter a question first.")
+            return
+        
+        with st.spinner("🤔 Thinking... Generating the best possible answer..."):
+            try:
+                # Use the same logic as the main system
+                ai_answer = generate_answer_from_knowledge_base(question, modern_health_knowledge)
+                
+                if ai_answer and len(ai_answer) > 20:
+                    # Check if we should use fallback for specific question types
+                    question_lower = question.lower()
+                    
+                    # Provider count questions
+                    if any(word in question_lower for word in ['how many', 'coaches', 'therapists', 'psychiatrists', 'providers']) and ('not available' in ai_answer.lower() or 'does not have specific' in ai_answer.lower() or 'does not provide' in ai_answer.lower()):
+                        st.info("🔄 AI knowledge system gave generic response, using contextual generation...")
+                        generated_answer = generate_contextual_answer(question)
+                        answer = generated_answer or "Please provide a custom answer based on your specific requirements."
+                        confidence = 80
+                        source = "AI Generated (Contextual Fallback)"
+                        method = "Contextual Generation"
+                        
+                    # Fitness-for-duty questions
+                    elif ('fitness for duty' in question_lower or 'fitness-for-duty' in question_lower) and ('does not have specific' in ai_answer.lower() or 'not available' in ai_answer.lower()):
+                        st.info("🔄 AI knowledge system gave generic response, using contextual generation...")
+                        generated_answer = generate_contextual_answer(question)
+                        answer = generated_answer or "Please provide a custom answer based on your specific requirements."
+                        confidence = 80
+                        source = "AI Generated (Contextual Fallback)"
+                        method = "Contextual Generation"
+                        
+                    else:
+                        answer = ai_answer
+                        confidence = 90
+                        source = "AI Knowledge System - Modern Health"
+                        method = "AI Knowledge Base"
+                        
+                else:
+                    st.info("🔄 AI knowledge system couldn't find specific information, using contextual generation...")
+                    generated_answer = generate_contextual_answer(question)
+                    answer = generated_answer or "Please provide a custom answer based on your specific requirements."
+                    confidence = 60
+                    source = "AI Generated (Contextual Fallback)"
+                    method = "Contextual Generation"
+                
+                # Display the answer
+                st.subheader("📝 Answer")
+                st.write(answer)
+                
+                # Show metadata
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Confidence", f"{confidence}%")
+                with col2:
+                    st.metric("Source", source)
+                with col3:
+                    st.metric("Method", method)
+                
+                # Show knowledge base info
+                with st.expander("🔍 Knowledge Base Information"):
+                    st.write(f"**Knowledge Base Size:** {len(modern_health_knowledge):,} characters")
+                    st.write(f"**Historical RFPs:** {len(existing_submissions)} submissions")
+                    st.write(f"**Answer Method:** {method}")
+                    
+                    if method == "AI Knowledge Base":
+                        st.success("✅ Answer generated from comprehensive Modern Health knowledge base")
+                    else:
+                        st.info("ℹ️ Answer generated using contextual knowledge and industry standards")
+                
+            except Exception as e:
+                st.error(f"❌ Error generating answer: {str(e)}")
+                st.exception(e)
+    
+    # Show example questions
+    st.subheader("💡 Example Questions")
+    example_questions = [
+        "How many mental health coaches do you have in the US?",
+        "What's your implementation timeline?",
+        "Do you provide fitness-for-duty evaluations?",
+        "What are your eligibility file requirements?",
+        "Can you provide a sample login for demos?",
+        "What's your definition of dependents?",
+        "Do you offer leave of absence support?",
+        "What are your performance guarantees?",
+        "How do you handle health plan integration?",
+        "What's your ROI methodology?"
+    ]
+    
+    cols = st.columns(2)
+    for i, example in enumerate(example_questions):
+        with cols[i % 2]:
+            if st.button(f"📋 {example}", key=f"example_{i}"):
+                st.session_state.example_question = example
+                st.rerun()
+    
+    # Handle example question selection
+    if hasattr(st.session_state, 'example_question'):
+        st.text_area("Selected example:", value=st.session_state.example_question, disabled=True)
+        if st.button("Use This Question"):
+            question = st.session_state.example_question
+            del st.session_state.example_question
+            st.rerun()
 
 if __name__ == "__main__":
     main()
