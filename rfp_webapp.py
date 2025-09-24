@@ -303,18 +303,20 @@ def save_rfp_submission(filename: str, content: str, extracted_data: Dict, compa
         print(f"DEBUG: Supabase client initialized")
         st.info(f"🔄 DEBUG: Supabase client initialized")
         
-        # Insert into Supabase rfp_documents table
+        # First, let's check what columns exist in the table
+        try:
+            # Try to get the table schema by selecting one row
+            schema_check = supabase.table('rfp_documents').select('*').limit(1).execute()
+            st.info(f"🔄 DEBUG: Table schema check successful, columns: {list(schema_check.data[0].keys()) if schema_check.data else 'No data in table'}")
+        except Exception as schema_error:
+            st.error(f"❌ DEBUG: Schema check failed: {schema_error}")
+        
+        # Insert into Supabase rfp_documents table - only use columns that exist
         data_to_insert = {
             'filename': filename,
             'content': content,
-            'extracted_data': json.dumps(extracted_data),
-            'company_name': company_name,
-            'is_corrected': is_corrected,
-            'original_rfp_id': original_rfp_id,
-            'win_status': win_status,
-            'deal_value': deal_value,
-            'win_date': win_date
-            # Note: broker_consultant column doesn't exist in Supabase table
+            'extracted_data': json.dumps(extracted_data)
+            # Only include basic columns that should exist
         }
         print(f"DEBUG: Data to insert: {list(data_to_insert.keys())}")
         
