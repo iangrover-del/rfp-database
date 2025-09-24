@@ -3603,6 +3603,28 @@ def show_dashboard(client):
     """Show the main dashboard"""
     st.header("Dashboard")
     
+    # Debug: Show database status
+    st.subheader("🔍 Database Debug Info")
+    try:
+        conn = init_database()
+        cursor = conn.cursor()
+        
+        # Check what tables exist in local database
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        st.write(f"**Local database tables:** {[table[0] for table in tables]}")
+        
+        # Check row counts
+        for table in tables:
+            table_name = table[0]
+            cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+            count = cursor.fetchone()[0]
+            st.write(f"**Table {table_name}:** {count} rows")
+        
+        conn.close()
+    except Exception as e:
+        st.error(f"Database error: {str(e)}")
+    
     # Get statistics
     submissions = get_all_submissions()
     
