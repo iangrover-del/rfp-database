@@ -712,35 +712,32 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     
     for i, chunk in enumerate(chunks):
         prompt = f"""
-        You are an expert RFP response extraction specialist. Your task is to extract BOTH questions and their corresponding answers from this RFP response document.
+        You are an expert RFP response extraction specialist. Your task is to extract ONLY the actual questions and their corresponding answers from this RFP response document.
         
         CRITICAL INSTRUCTIONS:
         1. This document contains RFP RESPONSES (answers to questions), not just questions
-        2. Extract EVERY question-answer pair from the document
+        2. Extract ONLY questions that are explicitly stated in the document
         3. For each question, find the corresponding answer that was provided
-        4. Include questions that end with "?" AND questions that don't end with "?"
-        5. Look for question-answer patterns in tables, forms, and structured sections
-        6. Extract questions from headers, bullet points, and numbered items
-        7. Find the answers that correspond to each question
-        8. If a question doesn't have a clear answer, note that
-        9. Be EXTREMELY thorough - extract everything that could be considered a question-answer pair
-        10. Look for questions in ALL formats: paragraphs, lists, tables, forms, checkboxes
-        11. Extract questions that are embedded in longer text
-        12. Look for questions that start with action words like "Describe", "Explain", "Provide", "List", "Detail"
-        13. Include questions that are part of larger statements
-        14. Look for questions in section headers and subheaders
-        15. Extract questions from any text that asks for specific information, details, or responses
+        4. DO NOT create or invent questions that are not in the document
+        5. DO NOT generate questions based on assumptions about what might be asked
+        6. Only extract questions that are clearly written in the document text
+        7. Look for question-answer patterns in tables, forms, and structured sections
+        8. Extract questions from headers, bullet points, and numbered items
+        9. Find the answers that correspond to each question
+        10. If a question doesn't have a clear answer, note that
         
-        WHAT TO EXTRACT (be extremely inclusive - extract EVERYTHING that asks for information):
-        - Direct questions ending with "?"
-        - Requests starting with "What", "How", "When", "Where", "Why", "Who", "Which", "Describe", "Explain", "Provide", "List", "Please", "Can you", "Do you", "Are you", "Will you"
-        - Numbered items that ask for information (even without "?")
-        - Bullet points that ask for information
-        - Table headers that ask for information
-        - Any text that requests specific details, information, or responses
-        - Form fields that need to be filled out
-        - Requirements that need to be addressed
-        - Sections that ask for documentation or evidence
+        WHAT TO EXTRACT (ONLY extract questions that are explicitly written in the document):
+        - Direct questions ending with "?" that are clearly stated
+        - Numbered questions that are explicitly written
+        - Table headers that are clearly questions
+        - Form fields that are explicitly questions
+        - Section headers that are clearly questions
+        
+        DO NOT EXTRACT:
+        - Questions that you infer or assume might be asked
+        - Questions that are not explicitly written in the document
+        - Questions based on general knowledge about RFPs
+        - Questions that you think should be there but aren't written
         - Instructions that ask for specific information
         - Prompts that require responses
         - Any text that ends with a colon and asks for information
