@@ -185,7 +185,7 @@ def init_supabase():
 @st.cache_resource
 def init_openai():
     try:
-    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+        api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     except:
         api_key = os.getenv("OPENAI_API_KEY")
     
