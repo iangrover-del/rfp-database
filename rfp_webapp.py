@@ -185,7 +185,7 @@ def init_supabase():
 @st.cache_resource
 def init_openai():
     try:
-        api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     except:
         api_key = os.getenv("OPENAI_API_KEY")
     
@@ -294,7 +294,30 @@ def init_database():
     return conn
 
 def save_rfp_submission(filename: str, content: str, extracted_data: Dict, company_name: str = None, is_corrected: bool = False, original_rfp_id: int = None, win_status: str = 'unknown', deal_value: float = None, win_date: str = None, broker_consultant: str = None):
-    """Save RFP submission to database"""
+    """Save RFP submission to Supabase"""
+    try:
+        supabase = init_supabase()
+        
+        # Insert into Supabase rfp_responses table
+        response = supabase.table('rfp_responses').insert({
+            'filename': filename,
+            'content': content,
+            'extracted_data': json.dumps(extracted_data),
+            'company_name': company_name,
+            'is_corrected': is_corrected,
+            'original_rfp_id': original_rfp_id,
+            'win_status': win_status,
+            'deal_value': deal_value,
+            'win_date': win_date,
+            'broker_consultant': broker_consultant
+        }).execute()
+        
+        print(f"DEBUG: Saved to Supabase: {filename}")
+        return True
+        
+    except Exception as e:
+        print(f"DEBUG: Supabase save failed: {e}")
+        # Fallback to local database
     conn = init_database()
     cursor = conn.cursor()
     
@@ -305,6 +328,7 @@ def save_rfp_submission(filename: str, content: str, extracted_data: Dict, compa
     
     conn.commit()
     conn.close()
+        return True
 
 def update_win_status(rfp_id: int, win_status: str, deal_value: float = None, win_date: str = None):
     """Update win/loss status for an RFP"""
@@ -412,16 +436,16 @@ def get_all_submissions():
     except Exception as e:
         print(f"DEBUG: Supabase error: {e}")
         # Fallback to local database
-        conn = init_database()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
-            FROM rfp_submissions
-            ORDER BY created_at DESC
-        ''')
-        results = cursor.fetchall()
-        conn.close()
-        return results
+    conn = init_database()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
+        FROM rfp_submissions
+        ORDER BY created_at DESC
+    ''')
+    results = cursor.fetchall()
+    conn.close()
+    return results
 
 def search_submissions(query: str):
     """Search RFP submissions"""
@@ -4374,7 +4398,7 @@ def show_browse_page():
         new_status = st.selectbox(
             "Update Status:",
             ["unknown", "won", "lost", "pending"],
-            index=["unknown", "won", "lost", "pending"].index(current_status),
+            index=["unknown", "won", "lost", "pending"].index(current_status) if current_status in ["unknown", "won", "lost", "pending"] else 0,
             format_func=lambda x: {
                 "unknown": "❓ Unknown/Not sure",
                 "won": "🏆 Won the deal!",
