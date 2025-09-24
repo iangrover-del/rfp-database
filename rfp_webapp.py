@@ -312,11 +312,11 @@ def save_rfp_submission(filename: str, content: str, extracted_data: Dict, compa
             st.error(f"❌ DEBUG: Schema check failed: {schema_error}")
         
         # Insert into Supabase rfp_documents table - only use columns that exist
+        # Since the table is empty, let's try to insert with minimal data first
+        # We'll start with just the basic columns that should exist
         data_to_insert = {
-            'filename': filename,
-            'content': content,
-            'extracted_data': json.dumps(extracted_data)
-            # Only include basic columns that should exist
+            'filename': filename
+            # Start with just filename to see what columns actually exist
         }
         print(f"DEBUG: Data to insert: {list(data_to_insert.keys())}")
         
