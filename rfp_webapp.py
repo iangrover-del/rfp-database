@@ -3924,7 +3924,9 @@ def show_upload_page(client):
                     st.write(f"- Chunk {i+1}: {len(chunk)} characters")
                 
                 # Extract data with AI
+                print(f"DEBUG: About to extract data with AI")
                 extracted_data = extract_rfp_data_with_ai(content, client)
+                print(f"DEBUG: AI extraction completed, result type: {type(extracted_data)}")
                 
                 # Check for errors in extraction
                 if isinstance(extracted_data, dict) and "error" in extracted_data:
@@ -3946,6 +3948,7 @@ def show_upload_page(client):
                     """)
                     return
                 
+                print(f"DEBUG: No errors in extraction, proceeding to save")
                 # Extract company name
                 print(f"DEBUG: Extracting company name from data")
                 company_name = None
