@@ -185,7 +185,7 @@ def init_supabase():
 @st.cache_resource
 def init_openai():
     try:
-    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+        api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     except:
         api_key = os.getenv("OPENAI_API_KEY")
     
@@ -3942,7 +3942,7 @@ def show_upload_page(client):
                 # Extract data with AI
                 print(f"DEBUG: About to extract data with AI")
                 try:
-                extracted_data = extract_rfp_data_with_ai(content, client)
+                    extracted_data = extract_rfp_data_with_ai(content, client)
                     print(f"DEBUG: AI extraction completed, result type: {type(extracted_data)}")
                 except Exception as e:
                     st.error(f"❌ **AI Extraction Error:** {str(e)}")
