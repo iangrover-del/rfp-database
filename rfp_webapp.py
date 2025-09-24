@@ -298,8 +298,8 @@ def save_rfp_submission(filename: str, content: str, extracted_data: Dict, compa
     try:
         supabase = init_supabase()
         
-        # Insert into Supabase rfp_responses table
-        response = supabase.table('rfp_responses').insert({
+        # Insert into Supabase rfp_documents table
+        response = supabase.table('rfp_documents').insert({
             'filename': filename,
             'content': content,
             'extracted_data': json.dumps(extracted_data),
@@ -411,9 +411,9 @@ def get_all_submissions():
     try:
         supabase = init_supabase()
         
-        # Read from Supabase rfp_responses table
-        print("DEBUG: Reading from Supabase rfp_responses table...")
-        response = supabase.table('rfp_responses').select('*').order('created_at', desc=True).execute()
+        # Read from Supabase rfp_documents table
+        print("DEBUG: Reading from Supabase rfp_documents table...")
+        response = supabase.table('rfp_documents').select('*').order('created_at', desc=True).execute()
         
         # Convert to the format expected by the rest of the app
         results = []
@@ -430,7 +430,7 @@ def get_all_submissions():
                 row.get('broker_consultant')
             ))
         
-        print(f"DEBUG: Found {len(results)} rows in Supabase rfp_responses table")
+        print(f"DEBUG: Found {len(results)} rows in Supabase rfp_documents table")
         return results
         
     except Exception as e:
@@ -3379,7 +3379,7 @@ def find_matching_answers(new_content: str, existing_submissions: List, client) 
     if unknown_submissions:
         existing_summary += "UNKNOWN/PENDING RFP SUBMISSIONS (Medium Priority - 80% Confidence - Include these):\n"
         for submission in unknown_submissions[:3]:  # Top 3 unknown/pending
-            win_status = submission[5] if len(submission) > 5 else 'unknown'
+            win_status = submission[5] if len(submission) > 5 and submission[5] else 'unknown'
             status_emoji = {"pending": "⏳", "unknown": "❓"}.get(win_status, "❓")
             existing_summary += f"{status_emoji} RFP: {submission[1]}\n"
             existing_summary += f"Company: {submission[2] or 'Unknown'}\n"
@@ -3665,12 +3665,12 @@ def show_dashboard(client):
     # Test Supabase connection
     try:
         supabase = init_supabase()
-        response = supabase.table('rfp_responses').select('id').limit(1).execute()
+        response = supabase.table('rfp_documents').select('id').limit(1).execute()
         st.success("✅ **Supabase Connected** - Using persistent storage")
-        st.write(f"**Supabase rfp_responses table:** {len(response.data)} rows (showing first row test)")
+        st.write(f"**Supabase rfp_documents table:** {len(response.data)} rows (showing first row test)")
         
         # Get full count
-        full_response = supabase.table('rfp_responses').select('id').execute()
+        full_response = supabase.table('rfp_documents').select('id').execute()
         st.write(f"**Total rows in Supabase:** {len(full_response.data)}")
         
     except Exception as e:
@@ -3716,7 +3716,7 @@ def show_dashboard(client):
             broker_stats[broker] = {'total': 0, 'won': 0, 'lost': 0, 'pending': 0, 'deal_value': 0}
         
         broker_stats[broker]['total'] += 1
-        win_status = submission[5] if len(submission) > 5 else 'unknown'
+        win_status = submission[5] if len(submission) > 5 and submission[5] else 'unknown'
         if win_status == 'won':
             broker_stats[broker]['won'] += 1
             if len(submission) > 6 and submission[6]:
@@ -3814,7 +3814,7 @@ def show_dashboard(client):
         # Show last 5 submissions with win status
         recent_submissions = submissions[-5:]
         for submission in reversed(recent_submissions):
-            win_status = submission[5] if len(submission) > 5 else 'unknown'
+            win_status = submission[5] if len(submission) > 5 and submission[5] else 'unknown'
             status_emoji = {"won": "🏆", "lost": "❌", "pending": "⏳", "unknown": "❓"}.get(win_status, "❓")
             deal_info = f" (${submission[6]:,.0f})" if len(submission) > 6 and submission[6] and win_status == 'won' else ""
             st.write(f"{status_emoji} **{submission[1]}** - {submission[2] or 'Unknown Company'} ({submission[3].strftime('%Y-%m-%d') if hasattr(submission[3], 'strftime') else submission[3]}){deal_info}")
@@ -4499,7 +4499,7 @@ def show_browse_page():
     
     # Get details of the RFP to be deleted
     delete_submission = next(s for s in submissions if s[0] == delete_rfp_id)
-    delete_win_status = delete_submission[5] if len(delete_submission) > 5 else 'unknown'
+    delete_win_status = delete_submission[5] if len(delete_submission) > 5 and delete_submission[5] else 'unknown'
     delete_deal_value = delete_submission[6] if len(delete_submission) > 6 and delete_submission[6] else None
     
     # Show details of what will be deleted
@@ -4508,7 +4508,7 @@ def show_browse_page():
     **You are about to delete:**
     - **File:** {delete_submission[1]}
     - **Company:** {delete_submission[2] or 'Unknown'}
-    - **Status:** {delete_win_status.upper()}
+    - **Status:** {delete_win_status.upper() if delete_win_status else 'UNKNOWN'}
     - **Deal Value:** {deal_value_display}
     - **Created:** {delete_submission[3]}
     
@@ -4538,7 +4538,7 @@ def show_browse_page():
     # Detailed view section
     st.subheader("📄 Detailed View")
     for submission in submissions:
-        win_status = submission[5] if len(submission) > 5 else 'unknown'
+        win_status = submission[5] if len(submission) > 5 and submission[5] else 'unknown'
         status_emoji = {"won": "🏆", "lost": "❌", "pending": "⏳", "unknown": "❓"}.get(win_status, "❓")
         
         with st.expander(f"{status_emoji} {submission[1]} - {submission[2] or 'Unknown Company'}"):
@@ -4715,7 +4715,7 @@ def show_export_page():
     # Prepare export data
     export_data = []
     for submission in submissions:
-        win_status = submission[5] if len(submission) > 5 else 'unknown'
+        win_status = submission[5] if len(submission) > 5 and submission[5] else 'unknown'
         deal_value = submission[6] if len(submission) > 6 and submission[6] else None
         win_date = submission[7] if len(submission) > 7 and submission[7] else None
         broker_consultant = submission[8] if len(submission) > 8 and submission[8] else None
