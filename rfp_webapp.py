@@ -4388,7 +4388,7 @@ def show_browse_page():
     
     # Get current status
     current_submission = next(s for s in submissions if s[0] == rfp_id)
-    current_status = current_submission[5] if len(current_submission) > 5 else 'unknown'
+    current_status = current_submission[5] if len(current_submission) > 5 and current_submission[5] else 'unknown'
     current_deal_value = current_submission[6] if len(current_submission) > 6 and current_submission[6] else None
     current_win_date = current_submission[7] if len(current_submission) > 7 and current_submission[7] else None
     
@@ -4445,14 +4445,14 @@ def show_browse_page():
     
     # Get current filename
     rename_submission = next(s for s in submissions if s[0] == rename_rfp_id)
-    current_filename = rename_submission[1]
+    current_filename = rename_submission[1] if rename_submission[1] else "Unknown"
     
     # Show current filename and input for new name
     st.write(f"**Current filename:** `{current_filename}`")
     
     # Extract file extension
     file_extension = ""
-    if '.' in current_filename:
+    if current_filename and '.' in current_filename:
         file_extension = '.' + current_filename.split('.')[-1]
     
     # Input for new filename
@@ -4588,9 +4588,9 @@ def show_browse_page():
         """)
         
         # Get current filename and extension
-        current_filename = st.session_state.rename_rfp_name
+        current_filename = st.session_state.rename_rfp_name or "Unknown"
         file_extension = ""
-        if '.' in current_filename:
+        if current_filename and '.' in current_filename:
             file_extension = '.' + current_filename.split('.')[-1]
         
         # Input for new filename
