@@ -1867,12 +1867,15 @@ def generate_answer_from_knowledge_base(question: str, knowledge_base: str, exis
             if 'per_employee_per_month' in pricing_averages:
                 pepm = pricing_averages['per_employee_per_month']
                 pricing_context += f"- Per Employee Per Month (PEPM): Average ${pepm['average']:.2f} (range: ${pepm['min']:.2f} - ${pepm['max']:.2f}, based on {pepm['count']} historical RFPs)\n"
+                pricing_context += f"- Actual PEPM values found: {pepm['values']}\n"
             if 'per_employee_per_year' in pricing_averages:
                 pey = pricing_averages['per_employee_per_year']
                 pricing_context += f"- Per Employee Per Year (PEY): Average ${pey['average']:.2f} (range: ${pey['min']:.2f} - ${pey['max']:.2f}, based on {pey['count']} historical RFPs)\n"
+                pricing_context += f"- Actual PEY values found: {pey['values']}\n"
             if 'setup_fees' in pricing_averages:
                 setup = pricing_averages['setup_fees']
                 pricing_context += f"- Setup/Implementation Fees: Average ${setup['average']:,.0f} (range: ${setup['min']:,.0f} - ${setup['max']:,.0f}, based on {setup['count']} historical RFPs)\n"
+                pricing_context += f"- Actual setup fee values found: {setup['values']}\n"
         
         prompt = f"""You are an expert RFP response writer for Modern Health. You have access to a comprehensive knowledge base about Modern Health's capabilities, processes, and services.
 
@@ -1896,6 +1899,8 @@ INSTRUCTIONS:
 12. For pricing questions, use the historical pricing data provided above instead of suggesting to contact specific individuals
 13. NEVER mention specific account executives, sales representatives, or contact emails in your responses
 14. Always provide pricing estimates based on historical data when available
+15. When providing pricing ranges, use proper format like "$8.00 to $12.00" not "8to8to12"
+16. If no historical pricing data is available, provide a professional response without specific numbers
 
 Generate a concise, professional RFP response based on the knowledge base:"""
 
@@ -3191,6 +3196,8 @@ def calculate_pricing_averages(existing_submissions):
         'implementation_costs': []
     }
     
+    print(f"DEBUG: Calculating pricing averages from {len(existing_submissions)} submissions")
+    
     for submission in existing_submissions:
         try:
             extracted_data = submission[4]  # extracted_data field
@@ -3198,53 +3205,89 @@ def calculate_pricing_averages(existing_submissions):
                 import json
                 extracted_data = json.loads(extracted_data)
             
-            # Look for pricing information in the extracted data
-            if isinstance(extracted_data, dict):
-                # Search for pricing patterns in the content
-                content = submission[1] if len(submission) > 1 else ""  # content field
-                if content:
-                    import re
-                    
-                    # Find PEPM (Per Employee Per Month) pricing
-                    pepm_matches = re.findall(r'\$?(\d+(?:\.\d+)?)\s*(?:per employee per month|PEPM|/employee/month)', content, re.IGNORECASE)
-                    for match in pepm_matches:
+            # Search for pricing patterns in the content
+            content = submission[1] if len(submission) > 1 else ""  # content field
+            if content:
+                import re
+                
+                # Find PEPM (Per Employee Per Month) pricing - more comprehensive patterns
+                pepm_patterns = [
+                    r'\$(\d+(?:\.\d+)?)\s*(?:per employee per month|PEPM|/employee/month|per employee/month)',
+                    r'(\d+(?:\.\d+)?)\s*(?:per employee per month|PEPM|/employee/month|per employee/month)',
+                    r'\$(\d+(?:\.\d+)?)\s*(?:per employee|per member|per participant)',
+                    r'(\d+(?:\.\d+)?)\s*(?:per employee|per member|per participant)'
+                ]
+                
+                for pattern in pepm_patterns:
+                    matches = re.findall(pattern, content, re.IGNORECASE)
+                    for match in matches:
                         try:
-                            pricing_data['per_employee_per_month'].append(float(match))
+                            price = float(match)
+                            # Only include reasonable PEPM values (between $1 and $50)
+                            if 1.0 <= price <= 50.0:
+                                pricing_data['per_employee_per_month'].append(price)
+                                print(f"DEBUG: Found PEPM: ${price}")
                         except:
                             pass
-                    
-                    # Find PEY (Per Employee Per Year) pricing
-                    pey_matches = re.findall(r'\$?(\d+(?:\.\d+)?)\s*(?:per employee per year|PEY|/employee/year)', content, re.IGNORECASE)
-                    for match in pey_matches:
+                
+                # Find PEY (Per Employee Per Year) pricing
+                pey_patterns = [
+                    r'\$(\d+(?:\.\d+)?)\s*(?:per employee per year|PEY|/employee/year|per employee/year)',
+                    r'(\d+(?:\.\d+)?)\s*(?:per employee per year|PEY|/employee/year|per employee/year)'
+                ]
+                
+                for pattern in pey_patterns:
+                    matches = re.findall(pattern, content, re.IGNORECASE)
+                    for match in matches:
                         try:
-                            pricing_data['per_employee_per_year'].append(float(match))
+                            price = float(match)
+                            # Only include reasonable PEY values (between $10 and $600)
+                            if 10.0 <= price <= 600.0:
+                                pricing_data['per_employee_per_year'].append(price)
+                                print(f"DEBUG: Found PEY: ${price}")
                         except:
                             pass
-                    
-                    # Find setup fees
-                    setup_matches = re.findall(r'\$?(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:setup|implementation|onboarding)', content, re.IGNORECASE)
-                    for match in setup_matches:
+                
+                # Find setup fees
+                setup_patterns = [
+                    r'\$(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:setup|implementation|onboarding|startup)',
+                    r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:setup|implementation|onboarding|startup)'
+                ]
+                
+                for pattern in setup_patterns:
+                    matches = re.findall(pattern, content, re.IGNORECASE)
+                    for match in matches:
                         try:
                             # Remove commas and convert to float
                             clean_match = match.replace(',', '')
-                            pricing_data['setup_fees'].append(float(clean_match))
+                            price = float(clean_match)
+                            # Only include reasonable setup fees (between $1,000 and $100,000)
+                            if 1000.0 <= price <= 100000.0:
+                                pricing_data['setup_fees'].append(price)
+                                print(f"DEBUG: Found setup fee: ${price:,.0f}")
                         except:
                             pass
                             
         except Exception as e:
-            print(f"Error processing pricing data from submission: {e}")
+            print(f"DEBUG: Error processing pricing data from submission: {e}")
             continue
     
     # Calculate averages
     averages = {}
     for key, values in pricing_data.items():
         if values:
+            # Remove duplicates and sort
+            unique_values = list(set(values))
+            unique_values.sort()
+            
             averages[key] = {
-                'average': sum(values) / len(values),
-                'min': min(values),
-                'max': max(values),
-                'count': len(values)
+                'average': sum(unique_values) / len(unique_values),
+                'min': min(unique_values),
+                'max': max(unique_values),
+                'count': len(unique_values),
+                'values': unique_values  # Include actual values for debugging
             }
+            print(f"DEBUG: {key}: {len(unique_values)} values, avg: ${averages[key]['average']:.2f}, range: ${averages[key]['min']:.2f}-${averages[key]['max']:.2f}")
     
     return averages
 
