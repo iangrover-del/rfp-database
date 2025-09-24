@@ -3972,6 +3972,7 @@ def show_upload_page(client):
                 
                 st.success("✅ Document uploaded and processed successfully!")
                 print(f"DEBUG: Success message displayed, showing extracted data")
+                st.error("🚨 DEBUG: This should not appear - upload process is working!")
                 
                 # Show extracted data
                 st.subheader("Extracted Information")
