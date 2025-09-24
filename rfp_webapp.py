@@ -217,6 +217,18 @@ def init_database():
     conn = sqlite3.connect('rfp_database.db')
     cursor = conn.cursor()
     
+    # Debug: Check what tables exist in local database
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = cursor.fetchall()
+    print(f"DEBUG: Local database tables: {[table[0] for table in tables]}")
+    
+    # Debug: Check row counts
+    for table in tables:
+        table_name = table[0]
+        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+        count = cursor.fetchone()[0]
+        print(f"DEBUG: Table {table_name} has {count} rows")
+    
     # Create tables
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS rfp_submissions (
@@ -327,11 +339,8 @@ def delete_rfp_submission(rfp_id: int):
         cursor.execute('DELETE FROM rfp_answers WHERE source_rfp_id = ?', (rfp_id,))
         
         # Delete the main submission
-        # Try rfp_responses first (Supabase), then fallback to rfp_submissions (local)
-        try:
-            cursor.execute('DELETE FROM rfp_responses WHERE id = ?', (rfp_id,))
-        except:
-            cursor.execute('DELETE FROM rfp_submissions WHERE id = ?', (rfp_id,))
+        # Delete from local rfp_submissions table
+        cursor.execute('DELETE FROM rfp_submissions WHERE id = ?', (rfp_id,))
         
         conn.commit()
         return True
@@ -348,19 +357,13 @@ def rename_rfp_submission(rfp_id: int, new_filename: str):
     
     try:
         # Check if the new filename already exists
-        # Try rfp_responses first (Supabase), then fallback to rfp_submissions (local)
-        try:
-            cursor.execute('SELECT id FROM rfp_responses WHERE filename = ? AND id != ?', (new_filename, rfp_id))
-        except:
-            cursor.execute('SELECT id FROM rfp_submissions WHERE filename = ? AND id != ?', (new_filename, rfp_id))
+        # Check if filename exists in local rfp_submissions table
+        cursor.execute('SELECT id FROM rfp_submissions WHERE filename = ? AND id != ?', (new_filename, rfp_id))
         if cursor.fetchone():
             return False, "A file with this name already exists"
         
-        # Update the filename - try rfp_responses first (Supabase), then fallback to rfp_submissions (local)
-        try:
-            cursor.execute('UPDATE rfp_responses SET filename = ? WHERE id = ?', (new_filename, rfp_id))
-        except:
-            cursor.execute('UPDATE rfp_submissions SET filename = ? WHERE id = ?', (new_filename, rfp_id))
+        # Update the filename in local rfp_submissions table
+        cursor.execute('UPDATE rfp_submissions SET filename = ? WHERE id = ?', (new_filename, rfp_id))
         
         conn.commit()
         return True, "Filename updated successfully"
@@ -375,21 +378,16 @@ def get_all_submissions():
     conn = init_database()
     cursor = conn.cursor()
     
-    # Try rfp_responses first (Supabase), then fallback to rfp_submissions (local)
-    try:
-        cursor.execute('''
-            SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
-            FROM rfp_responses
-            ORDER BY created_at DESC
-        ''')
-    except:
-        cursor.execute('''
+    # Read from local rfp_submissions table
+    print("DEBUG: Reading from local rfp_submissions table...")
+    cursor.execute('''
         SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
         FROM rfp_submissions
         ORDER BY created_at DESC
     ''')
-    
     results = cursor.fetchall()
+    print(f"DEBUG: Found {len(results)} rows in rfp_submissions table")
+    
     conn.close()
     return results
 
@@ -398,16 +396,8 @@ def search_submissions(query: str):
     conn = init_database()
     cursor = conn.cursor()
     
-    # Try rfp_responses first (Supabase), then fallback to rfp_submissions (local)
-    try:
-        cursor.execute('''
-            SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
-            FROM rfp_responses
-            WHERE filename LIKE ? OR company_name LIKE ? OR content LIKE ?
-            ORDER BY created_at DESC
-        ''', (f'%{query}%', f'%{query}%', f'%{query}%'))
-    except:
-        cursor.execute('''
+    # Search in local rfp_submissions table
+    cursor.execute('''
         SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
         FROM rfp_submissions
         WHERE filename LIKE ? OR company_name LIKE ? OR content LIKE ?
