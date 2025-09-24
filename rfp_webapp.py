@@ -898,12 +898,20 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
                         pages_analyzed.update(pages_data)
                     
             except json.JSONDecodeError as e:
-                # If JSON parsing fails, return error with raw response
-                return {
-                    "error": f"AI returned invalid JSON for chunk {i+1}",
-                    "json_error": str(e),
-                    "raw_response": response_content
-                }
+                # If JSON parsing fails, try to fix common JSON issues
+                print(f"DEBUG: JSON error in chunk {i+1}: {str(e)}")
+                
+                # Try to fix common JSON issues
+                try:
+                    # Remove any trailing commas
+                    fixed_content = response_content.replace(',}', '}').replace(',]', ']')
+                    # Try to parse the fixed content
+                    chunk_data = json.loads(fixed_content)
+                    print(f"DEBUG: Fixed JSON for chunk {i+1}")
+                except:
+                    # If fixing fails, skip this chunk and continue
+                    print(f"DEBUG: Skipping chunk {i+1} due to JSON error")
+                    continue
             except Exception as e:
                 return {
                     "error": f"Error processing chunk {i+1}: {str(e)}",
@@ -3933,21 +3941,25 @@ def show_upload_page(client):
                 
                 # Check for errors in extraction
                 if isinstance(extracted_data, dict) and "error" in extracted_data:
-                    st.error(f"❌ **AI Processing Error:** {extracted_data['error']}")
+                    error_msg = extracted_data['error']
+                    
+                    # Show user-friendly error message
+                    if "invalid JSON" in error_msg:
+                        st.warning("⚠️ **Processing Issue:** The AI had trouble processing part of your document.")
+                        st.info("💡 **This is usually temporary. Try uploading again, or try a smaller document.**")
+                    else:
+                        st.error(f"❌ **AI Processing Error:** {error_msg}")
                     
                     # Show additional debugging info if available
                     if "json_error" in extracted_data:
-                        st.error(f"**JSON Error:** {extracted_data['json_error']}")
-                    if "raw_response" in extracted_data:
-                        with st.expander("🔍 Raw AI Response (for debugging)"):
-                            st.text(extracted_data['raw_response'])
+                        with st.expander("🔍 Technical Details"):
+                            st.text(f"JSON Error: {extracted_data['json_error']}")
                     
-                    st.info("💡 **Troubleshooting Tips:**")
                     st.markdown("""
+                    **Troubleshooting tips:**
+                    - Try uploading the document again (this is often a temporary issue)
+                    - If the problem persists, try splitting the document into smaller parts
                     - Check your OpenAI API key and billing status
-                    - Ensure you have sufficient API credits
-                    - Try uploading a smaller document
-                    - The document might contain content that's being filtered
                     """)
                     return
                 
