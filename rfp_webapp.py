@@ -176,7 +176,7 @@ st.set_page_config(
 @st.cache_resource
 def init_openai():
     try:
-    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+        api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     except:
         api_key = os.getenv("OPENAI_API_KEY")
     
@@ -331,7 +331,7 @@ def delete_rfp_submission(rfp_id: int):
         try:
             cursor.execute('DELETE FROM rfp_responses WHERE id = ?', (rfp_id,))
         except:
-        cursor.execute('DELETE FROM rfp_submissions WHERE id = ?', (rfp_id,))
+            cursor.execute('DELETE FROM rfp_submissions WHERE id = ?', (rfp_id,))
         
         conn.commit()
         return True
@@ -352,7 +352,7 @@ def rename_rfp_submission(rfp_id: int, new_filename: str):
         try:
             cursor.execute('SELECT id FROM rfp_responses WHERE filename = ? AND id != ?', (new_filename, rfp_id))
         except:
-        cursor.execute('SELECT id FROM rfp_submissions WHERE filename = ? AND id != ?', (new_filename, rfp_id))
+            cursor.execute('SELECT id FROM rfp_submissions WHERE filename = ? AND id != ?', (new_filename, rfp_id))
         if cursor.fetchone():
             return False, "A file with this name already exists"
         
@@ -360,7 +360,7 @@ def rename_rfp_submission(rfp_id: int, new_filename: str):
         try:
             cursor.execute('UPDATE rfp_responses SET filename = ? WHERE id = ?', (new_filename, rfp_id))
         except:
-        cursor.execute('UPDATE rfp_submissions SET filename = ? WHERE id = ?', (new_filename, rfp_id))
+            cursor.execute('UPDATE rfp_submissions SET filename = ? WHERE id = ?', (new_filename, rfp_id))
         
         conn.commit()
         return True, "Filename updated successfully"
@@ -383,7 +383,7 @@ def get_all_submissions():
             ORDER BY created_at DESC
         ''')
     except:
-    cursor.execute('''
+        cursor.execute('''
         SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
         FROM rfp_submissions
         ORDER BY created_at DESC
@@ -407,7 +407,7 @@ def search_submissions(query: str):
             ORDER BY created_at DESC
         ''', (f'%{query}%', f'%{query}%', f'%{query}%'))
     except:
-    cursor.execute('''
+        cursor.execute('''
         SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
         FROM rfp_submissions
         WHERE filename LIKE ? OR company_name LIKE ? OR content LIKE ?
