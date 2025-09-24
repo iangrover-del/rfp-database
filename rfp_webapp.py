@@ -185,7 +185,7 @@ def init_supabase():
 @st.cache_resource
 def init_openai():
     try:
-        api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     except:
         api_key = os.getenv("OPENAI_API_KEY")
     
@@ -675,8 +675,8 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
     
     # Use smaller chunks to avoid token limit issues
     # Process in smaller chunks with better overlap for comprehensive extraction
-    chunk_size = 8000  # Reduced from 12000 to avoid token limits
-    overlap = 2000     # Increased overlap for better question capture
+    chunk_size = 12000  # Increased back for better performance
+    overlap = 1000      # Reduced overlap for faster processing
     
     chunks = []
     for i in range(0, len(content), chunk_size - overlap):
@@ -711,6 +711,10 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         print("=" * 80)
     
     for i, chunk in enumerate(chunks):
+        # Show progress for large files
+        if len(chunks) > 10:
+            print(f"Processing chunk {i+1}/{len(chunks)}...")
+        
         prompt = f"""
         You are an expert RFP response extraction specialist. Your task is to extract ONLY the actual questions and their corresponding answers from this RFP response document.
         
@@ -823,7 +827,8 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.1,
-                max_tokens=3000  # Reduced to be more conservative with token limits
+                max_tokens=3000,  # Reduced to be more conservative with token limits
+                timeout=60  # Add timeout for large files
             )
             
             # Get the response content
@@ -3937,7 +3942,7 @@ def show_upload_page(client):
                 # Extract data with AI
                 print(f"DEBUG: About to extract data with AI")
                 try:
-                    extracted_data = extract_rfp_data_with_ai(content, client)
+                extracted_data = extract_rfp_data_with_ai(content, client)
                     print(f"DEBUG: AI extraction completed, result type: {type(extracted_data)}")
                 except Exception as e:
                     st.error(f"❌ **AI Extraction Error:** {str(e)}")
