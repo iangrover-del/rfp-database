@@ -297,8 +297,11 @@ def save_rfp_submission(filename: str, content: str, extracted_data: Dict, compa
     """Save RFP submission to Supabase"""
     try:
         print(f"DEBUG: Starting save for {filename}")
+        import streamlit as st
+        st.info(f"🔄 DEBUG: Starting save for {filename}")
         supabase = init_supabase()
         print(f"DEBUG: Supabase client initialized")
+        st.info(f"🔄 DEBUG: Supabase client initialized")
         
         # Insert into Supabase rfp_documents table
         data_to_insert = {
@@ -317,11 +320,15 @@ def save_rfp_submission(filename: str, content: str, extracted_data: Dict, compa
         
         response = supabase.table('rfp_documents').insert(data_to_insert).execute()
         print(f"DEBUG: Supabase response: {response}")
+        st.info(f"🔄 DEBUG: Supabase response: {response}")
         print(f"DEBUG: Saved to Supabase: {filename}")
+        st.success(f"✅ DEBUG: Saved to Supabase: {filename}")
         return True
         
     except Exception as e:
         print(f"DEBUG: Supabase save failed: {e}")
+        import streamlit as st
+        st.error(f"❌ DEBUG: Supabase save failed: {e}")
         # Fallback to local database
     conn = init_database()
     cursor = conn.cursor()
@@ -3967,8 +3974,10 @@ def show_upload_page(client):
                 
                 # Save to database
                 print(f"DEBUG: About to save RFP: {uploaded_file.name}")
+                st.info(f"🔄 DEBUG: About to save RFP: {uploaded_file.name}")
                 result = save_rfp_submission(uploaded_file.name, content, extracted_data, company_name, win_status=win_status, deal_value=deal_value, win_date=win_date.strftime('%Y-%m-%d') if win_date else None, broker_consultant=broker_consultant if broker_consultant else None)
                 print(f"DEBUG: Save result: {result}")
+                st.info(f"🔄 DEBUG: Save result: {result}")
                 
                 st.success("✅ Document uploaded and processed successfully!")
                 print(f"DEBUG: Success message displayed, showing extracted data")
