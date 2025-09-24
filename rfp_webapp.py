@@ -3925,8 +3925,15 @@ def show_upload_page(client):
                 
                 # Extract data with AI
                 print(f"DEBUG: About to extract data with AI")
-                extracted_data = extract_rfp_data_with_ai(content, client)
-                print(f"DEBUG: AI extraction completed, result type: {type(extracted_data)}")
+                try:
+                    extracted_data = extract_rfp_data_with_ai(content, client)
+                    print(f"DEBUG: AI extraction completed, result type: {type(extracted_data)}")
+                except Exception as e:
+                    st.error(f"❌ **AI Extraction Error:** {str(e)}")
+                    print(f"DEBUG: Exception during AI extraction: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    return
                 
                 # Check for errors in extraction
                 if isinstance(extracted_data, dict) and "error" in extracted_data:
