@@ -3947,11 +3947,13 @@ def show_upload_page(client):
                     return
                 
                 # Extract company name
+                print(f"DEBUG: Extracting company name from data")
                 company_name = None
                 if isinstance(extracted_data, dict) and "Company Information" in extracted_data:
                     company_info = extracted_data["Company Information"]
                     if isinstance(company_info, dict) and "Company name" in company_info:
                         company_name = company_info["Company name"]
+                        print(f"DEBUG: Found company name: {company_name}")
                 
                 # Save to database
                 print(f"DEBUG: About to save RFP: {uploaded_file.name}")
@@ -3959,6 +3961,7 @@ def show_upload_page(client):
                 print(f"DEBUG: Save result: {result}")
                 
                 st.success("✅ Document uploaded and processed successfully!")
+                print(f"DEBUG: Success message displayed, showing extracted data")
                 
                 # Show extracted data
                 st.subheader("Extracted Information")
