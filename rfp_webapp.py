@@ -360,11 +360,19 @@ def get_all_submissions():
     conn = init_database()
     cursor = conn.cursor()
     
-    cursor.execute('''
-        SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
-        FROM rfp_submissions
-        ORDER BY created_at DESC
-    ''')
+    # Try rfp_responses first (Supabase), then fallback to rfp_submissions (local)
+    try:
+        cursor.execute('''
+            SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
+            FROM rfp_responses
+            ORDER BY created_at DESC
+        ''')
+    except:
+        cursor.execute('''
+            SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
+            FROM rfp_submissions
+            ORDER BY created_at DESC
+        ''')
     
     results = cursor.fetchall()
     conn.close()
