@@ -1686,7 +1686,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
         try:
             # Use AI to generate answer from Modern Health knowledge base
             print(f"DEBUG: Knowledge base length: {len(modern_health_knowledge)} characters")
-            ai_answer = generate_answer_from_knowledge_base(question, modern_health_knowledge)
+            ai_answer = generate_answer_from_knowledge_base(question, modern_health_knowledge, existing_submissions)
             
             if ai_answer and len(ai_answer) > 20:
                 # Check if this is a provider count question that got a generic "not available" response
@@ -1821,7 +1821,7 @@ def build_modern_health_knowledge_base(existing_submissions: List) -> str:
     print(f"DEBUG: Built knowledge base with {len(knowledge_entries)} entries")
     return knowledge_base
 
-def generate_answer_from_knowledge_base(question: str, knowledge_base: str) -> str:
+def generate_answer_from_knowledge_base(question: str, knowledge_base: str, existing_submissions=None) -> str:
     """Use AI to generate answers from the comprehensive Modern Health knowledge base"""
     try:
         print(f"DEBUG: Starting AI knowledge generation for question: {question[:50]}...")
@@ -1855,12 +1855,31 @@ def generate_answer_from_knowledge_base(question: str, knowledge_base: str) -> s
             print(f"DEBUG: Knowledge base too large ({len(knowledge_base)} chars), truncating")
             knowledge_base = knowledge_base[:8000] + "\n\n[Knowledge base truncated for token limits]"
         
+        # Calculate pricing averages if submissions are provided
+        pricing_averages = None
+        if existing_submissions:
+            pricing_averages = calculate_pricing_averages(existing_submissions)
+        
+        # Add pricing information to the prompt if available
+        pricing_context = ""
+        if pricing_averages and any(word in question.lower() for word in ['pricing', 'cost', 'price', 'fee', 'rate', 'per employee']):
+            pricing_context = "\n\nPRICING INFORMATION FROM HISTORICAL RFPs:\n"
+            if 'per_employee_per_month' in pricing_averages:
+                pepm = pricing_averages['per_employee_per_month']
+                pricing_context += f"- Per Employee Per Month (PEPM): Average ${pepm['average']:.2f} (range: ${pepm['min']:.2f} - ${pepm['max']:.2f}, based on {pepm['count']} historical RFPs)\n"
+            if 'per_employee_per_year' in pricing_averages:
+                pey = pricing_averages['per_employee_per_year']
+                pricing_context += f"- Per Employee Per Year (PEY): Average ${pey['average']:.2f} (range: ${pey['min']:.2f} - ${pey['max']:.2f}, based on {pey['count']} historical RFPs)\n"
+            if 'setup_fees' in pricing_averages:
+                setup = pricing_averages['setup_fees']
+                pricing_context += f"- Setup/Implementation Fees: Average ${setup['average']:,.0f} (range: ${setup['min']:,.0f} - ${setup['max']:,.0f}, based on {setup['count']} historical RFPs)\n"
+        
         prompt = f"""You are an expert RFP response writer for Modern Health. You have access to a comprehensive knowledge base about Modern Health's capabilities, processes, and services.
 
 QUESTION: {question}
 
 KNOWLEDGE BASE:
-{knowledge_base}
+{knowledge_base}{pricing_context}
 
 INSTRUCTIONS:
 1. Use the knowledge base above to answer the question concisely and directly
@@ -1874,6 +1893,9 @@ INSTRUCTIONS:
 9. For provider count questions, look carefully through the knowledge base for any numbers or provider information, even if not exact matches
 10. Be helpful and informative - avoid saying "not available" unless truly no relevant information exists
 11. For questions about capabilities (like sample logins), provide positive, helpful responses
+12. For pricing questions, use the historical pricing data provided above instead of suggesting to contact specific individuals
+13. NEVER mention specific account executives, sales representatives, or contact emails in your responses
+14. Always provide pricing estimates based on historical data when available
 
 Generate a concise, professional RFP response based on the knowledge base:"""
 
@@ -1918,6 +1940,9 @@ Generate a concise, professional RFP response based on the knowledge base:"""
         # Clean up the answer
         if answer.startswith("Based on the knowledge base"):
             answer = answer.split("\n", 1)[1] if "\n" in answer else answer
+        
+        # Clean account executive references
+        answer = clean_account_executive_references(answer)
         
         print(f"DEBUG: Final answer length after cleanup: {len(answer)}")
         return answer
@@ -5001,7 +5026,7 @@ def show_question_page(client):
         with st.spinner("🤔 Thinking... Generating the best possible answer..."):
             try:
                 # Use the same logic as the main system
-                ai_answer = generate_answer_from_knowledge_base(question, modern_health_knowledge)
+                ai_answer = generate_answer_from_knowledge_base(question, modern_health_knowledge, existing_submissions)
                 
                 if ai_answer and len(ai_answer) > 20:
                     # Check if we should use fallback for specific question types
