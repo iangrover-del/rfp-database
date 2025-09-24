@@ -185,7 +185,7 @@ def init_supabase():
 @st.cache_resource
 def init_openai():
     try:
-        api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     except:
         api_key = os.getenv("OPENAI_API_KEY")
     
@@ -732,6 +732,16 @@ def extract_rfp_data_with_ai(content: str, client) -> Dict[str, Any]:
         - Table headers that are clearly questions
         - Form fields that are explicitly questions
         - Section headers that are clearly questions
+        - Table rows where the first column contains a question or request for information
+        - Table cells that ask for specific information, even if not formatted as a question
+        - Any text in tables that requests information, details, or responses
+        
+        SPECIAL INSTRUCTIONS FOR TABLES:
+        - Look carefully at table structure - often questions are in the first column
+        - Extract table rows where the first cell asks for information
+        - Look for table headers that are questions
+        - Extract any table content that requests specific information
+        - Pay special attention to PDF tables - they often contain Q&A pairs
         
         DO NOT EXTRACT:
         - Questions that you infer or assume might be asked
@@ -3927,7 +3937,7 @@ def show_upload_page(client):
                 # Extract data with AI
                 print(f"DEBUG: About to extract data with AI")
                 try:
-                    extracted_data = extract_rfp_data_with_ai(content, client)
+                extracted_data = extract_rfp_data_with_ai(content, client)
                     print(f"DEBUG: AI extraction completed, result type: {type(extracted_data)}")
                 except Exception as e:
                     st.error(f"❌ **AI Extraction Error:** {str(e)}")
