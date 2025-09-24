@@ -1279,10 +1279,15 @@ def calculate_smart_match_score(new_question: str, historical_question: str, que
     
     return max(0.0, min(1.0, base_score))
 
-def generate_contextual_answer(question: str) -> str:
+def generate_contextual_answer(question: str, existing_submissions=None) -> str:
     """Generate a contextual answer based on the question type and industry knowledge"""
     
     question_lower = question.lower()
+    
+    # Calculate pricing averages if submissions are provided
+    pricing_averages = None
+    if existing_submissions:
+        pricing_averages = calculate_pricing_averages(existing_submissions)
     
     # Provider count questions
     if 'how many' in question_lower and any(word in question_lower for word in ['coaches', 'therapists', 'psychiatrists', 'providers', 'nurse practitioner']):
@@ -1364,6 +1369,28 @@ def generate_contextual_answer(question: str) -> str:
     elif any(word in question_lower for word in ['wait time', 'appointment', 'schedule']):
         return "Modern Health provides rapid access to care with average wait times of less than 24 hours for the first available appointment. Our virtual care options often provide same-day or next-day availability, while in-person appointments may have slightly longer wait times depending on location and provider availability."
     
+    # Pricing questions
+    elif any(word in question_lower for word in ['pricing', 'cost', 'price', 'fee', 'rate', 'per employee']):
+        if pricing_averages:
+            pricing_info = []
+            
+            if 'per_employee_per_month' in pricing_averages:
+                pepm = pricing_averages['per_employee_per_month']
+                pricing_info.append(f"Per Employee Per Month (PEPM): ${pepm['average']:.2f} (range: ${pepm['min']:.2f} - ${pepm['max']:.2f}, based on {pepm['count']} historical RFPs)")
+            
+            if 'per_employee_per_year' in pricing_averages:
+                pey = pricing_averages['per_employee_per_year']
+                pricing_info.append(f"Per Employee Per Year (PEY): ${pey['average']:.2f} (range: ${pey['min']:.2f} - ${pey['max']:.2f}, based on {pey['count']} historical RFPs)")
+            
+            if 'setup_fees' in pricing_averages:
+                setup = pricing_averages['setup_fees']
+                pricing_info.append(f"Setup/Implementation Fees: ${setup['average']:,.0f} (range: ${setup['min']:,.0f} - ${setup['max']:,.0f}, based on {setup['count']} historical RFPs)")
+            
+            if pricing_info:
+                return f"Based on our historical pricing data: {'; '.join(pricing_info)}. Please contact our team for a customized quote based on your specific requirements."
+        
+        return "Pricing varies based on company size, scope of services, and specific requirements. Please contact our team for a customized quote."
+
     # Sample login/demo questions
     elif any(word in question_lower for word in ['sample', 'login', 'demo']):
         return "Yes, Modern Health can provide a sample login for Barclays to demo our capabilities. We can set up a demo environment with sample login credentials to showcase our platform capabilities, including access to our mobile app, web portal, and key features such as provider matching, appointment scheduling, and digital resources. We can set up a personalized demo tailored to your specific needs."
@@ -1666,7 +1693,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                 if any(word in question.lower() for word in ['how many', 'coaches', 'therapists', 'psychiatrists', 'providers']) and ('not available' in ai_answer.lower() or 'does not have specific' in ai_answer.lower() or 'does not provide' in ai_answer.lower()):
                     print(f"DEBUG: AI knowledge system gave generic response for provider count question {i+1}, using contextual generation")
                     # Fallback to contextual generation for provider counts
-                    generated_answer = generate_contextual_answer(question)
+                    generated_answer = generate_contextual_answer(question, existing_submissions)
                     matches.append({
                         "question": question,
                         "suggested_answer": generated_answer or "Please provide a custom answer based on your specific requirements.",
@@ -1681,7 +1708,7 @@ def find_matching_answers_simple(questions: List[str], existing_submissions: Lis
                     if 'does not have specific' in ai_answer.lower() or 'not available' in ai_answer.lower():
                         print(f"DEBUG: AI knowledge system gave generic response for fitness-for-duty question {i+1}, using contextual generation")
                         # Fallback to contextual generation for fitness-for-duty
-                        generated_answer = generate_contextual_answer(question)
+                        generated_answer = generate_contextual_answer(question, existing_submissions)
                         matches.append({
                             "question": question,
                             "suggested_answer": generated_answer or "Please provide a custom answer based on your specific requirements.",
@@ -2223,8 +2250,12 @@ def generate_ai_answer_for_question(question: str, all_qa_pairs: List[Dict]) -> 
         result = json.loads(response.choices[0].message.content)
         print(f"DEBUG: AI generated answer with confidence: {result.get('confidence', 'unknown')}")
         
+        # Clean the answer
+        cleaned_answer = clean_brand_names(result['answer'])
+        cleaned_answer = clean_account_executive_references(cleaned_answer)
+        
         return {
-            'answer': clean_brand_names(result['answer']),
+            'answer': cleaned_answer,
             'confidence': result['confidence'],
             'source': relevant_pairs[0]['source'],
             'status': relevant_pairs[0]['status']
@@ -2452,8 +2483,12 @@ def generate_ai_answer(question: str, knowledge_base: List[Dict]) -> Dict[str, A
         result = json.loads(response.choices[0].message.content)
         print(f"DEBUG: AI generated answer with confidence: {result.get('confidence', 'unknown')}")
         
+        # Clean the answer
+        cleaned_answer = clean_brand_names(result['answer'])
+        cleaned_answer = clean_account_executive_references(cleaned_answer)
+        
         return {
-            'answer': clean_brand_names(result['answer']),
+            'answer': cleaned_answer,
             'confidence': result['confidence'],
             'source': relevant_pairs[0]['source'],
             'status': relevant_pairs[0]['status']
@@ -3105,6 +3140,88 @@ def clean_brand_names(text: str) -> str:
     cleaned_text = cleaned_text.replace('650 California Street, Fl. 7, Office 07-128, San Francisco, CA.', '[Current Address].')
     
     return cleaned_text
+
+def clean_account_executive_references(text: str) -> str:
+    """Remove account executive references and replace with generic contact info"""
+    if not text:
+        return text
+    
+    # Remove specific account executive mentions
+    import re
+    
+    # Remove patterns like "contact [Name] at [email]" or "reach out to [Name]"
+    cleaned_text = re.sub(r'contact\s+[A-Za-z\s]+\s+at\s+[^\s]+@[^\s]+', 'contact our team', text, flags=re.IGNORECASE)
+    cleaned_text = re.sub(r'reach out to\s+[A-Za-z\s]+', 'contact our team', cleaned_text, flags=re.IGNORECASE)
+    cleaned_text = re.sub(r'please contact\s+[A-Za-z\s]+', 'please contact our team', cleaned_text, flags=re.IGNORECASE)
+    cleaned_text = re.sub(r'for pricing.*contact\s+[A-Za-z\s]+', 'for pricing information', cleaned_text, flags=re.IGNORECASE)
+    
+    return cleaned_text
+
+def calculate_pricing_averages(existing_submissions):
+    """Calculate average pricing from all historical RFPs"""
+    pricing_data = {
+        'per_employee_per_month': [],
+        'per_employee_per_year': [],
+        'setup_fees': [],
+        'implementation_costs': []
+    }
+    
+    for submission in existing_submissions:
+        try:
+            extracted_data = submission[4]  # extracted_data field
+            if isinstance(extracted_data, str):
+                import json
+                extracted_data = json.loads(extracted_data)
+            
+            # Look for pricing information in the extracted data
+            if isinstance(extracted_data, dict):
+                # Search for pricing patterns in the content
+                content = submission[1] if len(submission) > 1 else ""  # content field
+                if content:
+                    import re
+                    
+                    # Find PEPM (Per Employee Per Month) pricing
+                    pepm_matches = re.findall(r'\$?(\d+(?:\.\d+)?)\s*(?:per employee per month|PEPM|/employee/month)', content, re.IGNORECASE)
+                    for match in pepm_matches:
+                        try:
+                            pricing_data['per_employee_per_month'].append(float(match))
+                        except:
+                            pass
+                    
+                    # Find PEY (Per Employee Per Year) pricing
+                    pey_matches = re.findall(r'\$?(\d+(?:\.\d+)?)\s*(?:per employee per year|PEY|/employee/year)', content, re.IGNORECASE)
+                    for match in pey_matches:
+                        try:
+                            pricing_data['per_employee_per_year'].append(float(match))
+                        except:
+                            pass
+                    
+                    # Find setup fees
+                    setup_matches = re.findall(r'\$?(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:setup|implementation|onboarding)', content, re.IGNORECASE)
+                    for match in setup_matches:
+                        try:
+                            # Remove commas and convert to float
+                            clean_match = match.replace(',', '')
+                            pricing_data['setup_fees'].append(float(clean_match))
+                        except:
+                            pass
+                            
+        except Exception as e:
+            print(f"Error processing pricing data from submission: {e}")
+            continue
+    
+    # Calculate averages
+    averages = {}
+    for key, values in pricing_data.items():
+        if values:
+            averages[key] = {
+                'average': sum(values) / len(values),
+                'min': min(values),
+                'max': max(values),
+                'count': len(values)
+            }
+    
+    return averages
 
 def make_answer_concise(question: str, answer: str) -> str:
     """Make answers more concise for certain question types"""
@@ -4893,7 +5010,7 @@ def show_question_page(client):
                     # Provider count questions
                     if any(word in question_lower for word in ['how many', 'coaches', 'therapists', 'psychiatrists', 'providers']) and ('not available' in ai_answer.lower() or 'does not have specific' in ai_answer.lower() or 'does not provide' in ai_answer.lower()):
                         st.info("🔄 AI knowledge system gave generic response, using contextual generation...")
-                        generated_answer = generate_contextual_answer(question)
+                        generated_answer = generate_contextual_answer(question, existing_submissions)
                         answer = generated_answer or "Please provide a custom answer based on your specific requirements."
                         confidence = 80
                         source = "AI Generated (Contextual Fallback)"
@@ -4902,7 +5019,7 @@ def show_question_page(client):
                     # Fitness-for-duty questions
                     elif ('fitness for duty' in question_lower or 'fitness-for-duty' in question_lower) and ('does not have specific' in ai_answer.lower() or 'not available' in ai_answer.lower()):
                         st.info("🔄 AI knowledge system gave generic response, using contextual generation...")
-                        generated_answer = generate_contextual_answer(question)
+                        generated_answer = generate_contextual_answer(question, existing_submissions)
                         answer = generated_answer or "Please provide a custom answer based on your specific requirements."
                         confidence = 80
                         source = "AI Generated (Contextual Fallback)"
@@ -4916,7 +5033,7 @@ def show_question_page(client):
                         
                 else:
                     st.info("🔄 AI knowledge system couldn't find specific information, using contextual generation...")
-                    generated_answer = generate_contextual_answer(question)
+                    generated_answer = generate_contextual_answer(question, existing_submissions)
                     answer = generated_answer or "Please provide a custom answer based on your specific requirements."
                     confidence = 60
                     source = "AI Generated (Contextual Fallback)"
