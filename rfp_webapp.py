@@ -3854,6 +3854,7 @@ def show_upload_page(client):
             return
         
         st.info(f"Selected file: {uploaded_file.name}")
+        print(f"DEBUG: File validation passed for {uploaded_file.name}")
         
         # Win/Loss tracking
         st.subheader("📊 Win/Loss Tracking")
