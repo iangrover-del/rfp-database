@@ -175,10 +175,14 @@ st.set_page_config(
 # Initialize OpenAI
 @st.cache_resource
 def init_openai():
+    try:
     api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    except:
+        api_key = os.getenv("OPENAI_API_KEY")
+    
     if not api_key:
-        st.error("⚠️ OpenAI API key not found. Please set OPENAI_API_KEY in secrets or environment variables.")
-        st.stop()
+        st.warning("⚠️ OpenAI API key not found. Some features may not work properly.")
+        return None
     return openai.OpenAI(api_key=api_key)
 
 def test_openai_connection(client):
