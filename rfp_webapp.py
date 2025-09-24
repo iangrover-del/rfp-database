@@ -185,7 +185,7 @@ def init_supabase():
 @st.cache_resource
 def init_openai():
     try:
-    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+        api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     except:
         api_key = os.getenv("OPENAI_API_KEY")
     
@@ -328,7 +328,7 @@ def save_rfp_submission(filename: str, content: str, extracted_data: Dict, compa
     
     conn.commit()
     conn.close()
-        return True
+    return True
 
 def update_win_status(rfp_id: int, win_status: str, deal_value: float = None, win_date: str = None):
     """Update win/loss status for an RFP"""
