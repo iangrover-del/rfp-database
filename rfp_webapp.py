@@ -313,8 +313,8 @@ def save_rfp_submission(filename: str, content: str, extracted_data: Dict, compa
             'original_rfp_id': original_rfp_id,
             'win_status': win_status,
             'deal_value': deal_value,
-            'win_date': win_date,
-            'broker_consultant': broker_consultant
+            'win_date': win_date
+            # Note: broker_consultant column doesn't exist in Supabase table
         }
         print(f"DEBUG: Data to insert: {list(data_to_insert.keys())}")
         
