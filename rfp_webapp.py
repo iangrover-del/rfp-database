@@ -13,6 +13,7 @@ import PyPDF2
 import io
 import hashlib
 import secrets
+from supabase import create_client, Client
 import time
 
 # Excel support will be checked when needed
@@ -171,6 +172,14 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Initialize Supabase
+@st.cache_resource
+def init_supabase():
+    """Initialize Supabase client"""
+    url = "https://zgmjgycmokkodcsehaiy.supabase.co"
+    key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnbWpneWNtb2trb2Rjc2VoYWl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2OTc1NTUsImV4cCI6MjA3MzI3MzU1NX0.R2-tRarFopzpm9VMh8x_lW57bomjlJPPvzHxm9evV88"
+    return create_client(url, key)
 
 # Initialize OpenAI
 @st.cache_resource
@@ -374,22 +383,45 @@ def rename_rfp_submission(rfp_id: int, new_filename: str):
         conn.close()
 
 def get_all_submissions():
-    """Get all RFP submissions"""
-    conn = init_database()
-    cursor = conn.cursor()
-    
-    # Read from local rfp_submissions table
-    print("DEBUG: Reading from local rfp_submissions table...")
-    cursor.execute('''
-        SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
-        FROM rfp_submissions
-        ORDER BY created_at DESC
-    ''')
-    results = cursor.fetchall()
-    print(f"DEBUG: Found {len(results)} rows in rfp_submissions table")
-    
-    conn.close()
-    return results
+    """Get all RFP submissions from Supabase"""
+    try:
+        supabase = init_supabase()
+        
+        # Read from Supabase rfp_responses table
+        print("DEBUG: Reading from Supabase rfp_responses table...")
+        response = supabase.table('rfp_responses').select('*').order('created_at', desc=True).execute()
+        
+        # Convert to the format expected by the rest of the app
+        results = []
+        for row in response.data:
+            results.append((
+                row.get('id'),
+                row.get('filename'),
+                row.get('company_name'),
+                row.get('created_at'),
+                row.get('extracted_data'),
+                row.get('win_status'),
+                row.get('deal_value'),
+                row.get('win_date'),
+                row.get('broker_consultant')
+            ))
+        
+        print(f"DEBUG: Found {len(results)} rows in Supabase rfp_responses table")
+        return results
+        
+    except Exception as e:
+        print(f"DEBUG: Supabase error: {e}")
+        # Fallback to local database
+        conn = init_database()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, filename, company_name, created_at, extracted_data, win_status, deal_value, win_date, broker_consultant
+            FROM rfp_submissions
+            ORDER BY created_at DESC
+        ''')
+        results = cursor.fetchall()
+        conn.close()
+        return results
 
 def search_submissions(query: str):
     """Search RFP submissions"""
@@ -3605,25 +3637,39 @@ def show_dashboard(client):
     
     # Debug: Show database status
     st.subheader("🔍 Database Debug Info")
+    
+    # Test Supabase connection
     try:
-        conn = init_database()
-        cursor = conn.cursor()
+        supabase = init_supabase()
+        response = supabase.table('rfp_responses').select('id').limit(1).execute()
+        st.success("✅ **Supabase Connected** - Using persistent storage")
+        st.write(f"**Supabase rfp_responses table:** {len(response.data)} rows (showing first row test)")
         
-        # Check what tables exist in local database
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = cursor.fetchall()
-        st.write(f"**Local database tables:** {[table[0] for table in tables]}")
+        # Get full count
+        full_response = supabase.table('rfp_responses').select('id').execute()
+        st.write(f"**Total rows in Supabase:** {len(full_response.data)}")
         
-        # Check row counts
-        for table in tables:
-            table_name = table[0]
-            cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
-            count = cursor.fetchone()[0]
-            st.write(f"**Table {table_name}:** {count} rows")
-        
-        conn.close()
     except Exception as e:
-        st.error(f"Database error: {str(e)}")
+        st.error(f"❌ **Supabase Error:** {str(e)}")
+        st.info("🔄 **Falling back to local database**")
+        
+        # Show local database info
+        try:
+            conn = init_database()
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = cursor.fetchall()
+            st.write(f"**Local database tables:** {[table[0] for table in tables]}")
+            
+            for table in tables:
+                table_name = table[0]
+                cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+                count = cursor.fetchone()[0]
+                st.write(f"**Table {table_name}:** {count} rows")
+            
+            conn.close()
+        except Exception as local_e:
+            st.error(f"Local database error: {str(local_e)}")
     
     # Get statistics
     submissions = get_all_submissions()
