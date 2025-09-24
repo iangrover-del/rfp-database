@@ -296,23 +296,9 @@ def init_database():
 def save_rfp_submission(filename: str, content: str, extracted_data: Dict, company_name: str = None, is_corrected: bool = False, original_rfp_id: int = None, win_status: str = 'unknown', deal_value: float = None, win_date: str = None, broker_consultant: str = None):
     """Save RFP submission to Supabase"""
     try:
-        print(f"DEBUG: Starting save for {filename}")
-        import streamlit as st
-        st.info(f"🔄 DEBUG: Starting save for {filename}")
         supabase = init_supabase()
-        print(f"DEBUG: Supabase client initialized")
-        st.info(f"🔄 DEBUG: Supabase client initialized")
         
-        # First, let's check what columns exist in the table
-        try:
-            # Try to get the table schema by selecting one row
-            schema_check = supabase.table('rfp_documents').select('*').limit(1).execute()
-            st.info(f"🔄 DEBUG: Table schema check successful, columns: {list(schema_check.data[0].keys()) if schema_check.data else 'No data in table'}")
-        except Exception as schema_error:
-            st.error(f"❌ DEBUG: Schema check failed: {schema_error}")
-        
-        # Insert into Supabase rfp_documents table - only use columns that exist
-        # Now that the table exists, let's insert with all the columns
+        # Insert into Supabase rfp_documents table
         data_to_insert = {
             'filename': filename,
             'content': content,
@@ -325,19 +311,13 @@ def save_rfp_submission(filename: str, content: str, extracted_data: Dict, compa
             'win_date': win_date,
             'broker_consultant': broker_consultant
         }
-        print(f"DEBUG: Data to insert: {list(data_to_insert.keys())}")
         
         response = supabase.table('rfp_documents').insert(data_to_insert).execute()
-        print(f"DEBUG: Supabase response: {response}")
-        st.info(f"🔄 DEBUG: Supabase response: {response}")
         print(f"DEBUG: Saved to Supabase: {filename}")
-        st.success(f"✅ DEBUG: Saved to Supabase: {filename}")
         return True
         
     except Exception as e:
         print(f"DEBUG: Supabase save failed: {e}")
-        import streamlit as st
-        st.error(f"❌ DEBUG: Supabase save failed: {e}")
         # Fallback to local database
     conn = init_database()
     cursor = conn.cursor()
@@ -3982,15 +3962,9 @@ def show_upload_page(client):
                         print(f"DEBUG: Found company name: {company_name}")
                 
                 # Save to database
-                print(f"DEBUG: About to save RFP: {uploaded_file.name}")
-                st.info(f"🔄 DEBUG: About to save RFP: {uploaded_file.name}")
                 result = save_rfp_submission(uploaded_file.name, content, extracted_data, company_name, win_status=win_status, deal_value=deal_value, win_date=win_date.strftime('%Y-%m-%d') if win_date else None, broker_consultant=broker_consultant if broker_consultant else None)
-                print(f"DEBUG: Save result: {result}")
-                st.info(f"🔄 DEBUG: Save result: {result}")
                 
                 st.success("✅ Document uploaded and processed successfully!")
-                print(f"DEBUG: Success message displayed, showing extracted data")
-                st.error("🚨 DEBUG: This should not appear - upload process is working!")
                 
                 # Show extracted data
                 st.subheader("Extracted Information")
